@@ -1,0 +1,49 @@
+{
+  "name": "agent-remoteops",
+  "version": "0.1.0",
+  "description": "Temporary remote operations bridge for local coding agents",
+  "type": "module",
+  "bin": {
+    "agent-remoteops": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "check": "pnpm typecheck && pnpm test && pnpm build"
+  },
+  "keywords": [
+    "agent",
+    "remote-operations",
+    "codex",
+    "cloudflare-tunnel",
+    "devops"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@inquirer/prompts": "^7.8.4",
+    "commander": "^14.0.0",
+    "fastify": "^5.5.0",
+    "shell-quote": "^1.8.3",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "@types/shell-quote": "^1.7.5",
+    "tsup": "^8.5.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  },
+  "packageManager": "pnpm@10.15.0"
+}
