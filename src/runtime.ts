@@ -59,7 +59,7 @@ export class AgentRemoteOpsRuntime {
       expiresAt.setTime(Date.now() + this.config.ttlMs);
       this.ttlTimer = setTimeout(() => void this.shutdown("ttl-expired", 0), this.config.ttlMs);
       this.ttlTimer.unref();
-      this.logger.event({ action: "session.start", status: "ready", message: tunnel.url });
+      this.logger.event({ action: "session.start", status: "ready", message: tunnel.url }, { console: false });
       return { url: tunnel.url, token, expiresAt };
     } catch (error) {
       await this.shutdown("startup-failed", 1);

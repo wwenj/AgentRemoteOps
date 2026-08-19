@@ -79,7 +79,9 @@ agent-remoteops start
 - `readonly`、`readwrite` 或 `full` 权限模式；
 - 是否记录本地审计日志。
 
-启动后，复制终端输出的 URL 和 Token，并保持进程在前台运行。按 `Ctrl+C` 可提前关闭 Session，否则会在 TTL 到期后自动关闭。
+每个交互选项之间会保留清晰间距，所有选择完成后会先显示配置摘要，只有再次确认才会启动服务。启动成功后，URL、Token、权限、工作目录和到期时间会按单行键值排列，同时显示 Agent 使用说明、安全提示和自动清理说明。
+
+复制终端输出的 URL 和 Token，发送给已安装 Agent RemoteOps Skill 的 Codex、Claude Code 或其他 Coding Agent，并保持服务端进程在前台运行。后续文件与命令调用日志会实时显示在连接信息下方。按 `Ctrl+C` 可提前关闭 Session，否则会在 TTL 到期后自动关闭并清理临时资源。
 
 ### 2. 从本地环境连接
 

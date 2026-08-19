@@ -30,7 +30,7 @@ export class OperationLogger {
     }
   }
 
-  event(event: AuditEvent): void {
+  event(event: AuditEvent, options: { console?: boolean } = {}): void {
     const normalized: AuditEvent = {
       ...event,
       time: event.time ?? new Date().toISOString(),
@@ -49,7 +49,9 @@ export class OperationLogger {
       normalized.bytes !== undefined ? `bytes=${normalized.bytes}` : "",
       normalized.clientIp ? `ip=${normalized.clientIp}` : "",
     ].filter(Boolean).join(" ");
-    process.stdout.write(`${time}  ${label} ${subject}${details ? `  ${details}` : ""}\n`);
+    if (options.console !== false) {
+      process.stdout.write(`${time}  ${label} ${subject}${details ? `  ${details}` : ""}\n`);
+    }
     this.stream?.write(`${JSON.stringify(normalized)}\n`);
   }
 

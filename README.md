@@ -79,7 +79,9 @@ The interactive wizard asks you to confirm:
 - the `readonly`, `readwrite`, or `full` permission mode;
 - whether local audit logging is enabled.
 
-After startup, copy the generated URL and token. Keep the process in the foreground. Press `Ctrl+C` to close the session early; otherwise it closes automatically when the TTL expires.
+The wizard keeps each prompt visually separated and shows a configuration summary before the final confirmation. After startup, the URL, token, permission, workspace, and expiry are displayed as compact single-line fields together with agent handoff, security, live-log, and cleanup guidance.
+
+Copy the generated URL and token to Codex, Claude Code, or another coding agent with the Agent RemoteOps Skill installed. Keep the server process in the foreground. Subsequent file and command logs appear below the connection details. Press `Ctrl+C` to close the session early; otherwise it closes and cleans up temporary resources automatically when the TTL expires.
 
 ### 2. Connect from the local machine
 
