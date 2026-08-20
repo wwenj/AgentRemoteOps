@@ -6,150 +6,142 @@
 
 <p align="center">English | <a href="./README.zh-CN.md">简体中文</a></p>
 
-<p align="center">Short-lived, auditable remote access for coding agents—without long-lived SSH credentials or a permanent administration service.</p>
+<p align="center">A short-lived, auditable remote-operations bridge with a server-only Linux CLI and a self-contained local Codex Skill.</p>
 
 > [!WARNING]
-> Allowing an agent to run commands on a server is inherently risky. Use `readonly` whenever possible. `full` does not restrict commands and inherits the permissions of the Linux user running the service. Review the [permission modes and security boundaries](#permission-modes-and-security-boundaries) before using Agent RemoteOps on a production host.
+> Remote commands executed by an agent are risky. Prefer `readonly`. The `full` mode inherits the permissions of the Linux user that starts the server. Understand the security boundaries below before using it on important systems.
+
+## Why Agent RemoteOps
+
+A local Codex cannot normally inspect the real processes, ports, systemd units, containers, logs, and deployment files on a remote Linux host. Permanent SSH credentials are broader and longer-lived than a temporary diagnostic task requires, while exposing a management port increases the attack surface.
+
+Agent RemoteOps starts an HTTP service bound only to `127.0.0.1` on the remote host and exposes it through a temporary Cloudflare Quick Tunnel. Give the generated URL, Token, and task to Codex with the Agent RemoteOps Skill installed. The Session shuts down its HTTP server, Tunnel, Jobs, and tracked child processes on Ctrl+C or TTL expiry.
+
+```text
+Local Codex
+  `- Agent RemoteOps Skill
+       `- bundled Python client
+              | HTTPS + Token + Client ID + Protocol v2
+              v
+       Cloudflare Quick Tunnel
+              v
+Remote Linux
+  `- agent-remoteops CLI
+       |- file API
+       |- command Jobs
+       `- policy, TTL, audit, and process cleanup
+```
+
+The local machine does not install the `agent-remoteops` npm CLI.
 
 ## Demo
 
-The workflow has three steps: start a temporary Session on the remote host, give its URL and Token to Codex along with your task, and monitor activity from the server console.
-
-### 1. Start a temporary Session
-
-Run `agent-remoteops start` on the remote Linux host, then choose the lifetime, permission mode, and initial working directory. Once ready, the console displays the temporary URL, Token, and Session scope.
+### 1. Start a Session on remote Linux
 
 <video src="./public/demo-start.mp4" controls muted playsinline width="100%"></video>
 
 [Open the video directly](./public/demo-start.mp4)
 
-### 2. Hand the task to Codex
-
-Send the Session details and your task to Codex with the Agent RemoteOps Skill installed. Codex verifies the effective permissions and expiry before inspecting the server through the controlled command and file APIs.
+### 2. Give the Session and task directly to Codex
 
 <video src="./public/demo-codex.mp4" controls muted playsinline width="100%"></video>
 
 [Open the video directly](./public/demo-codex.mp4)
 
-### 3. Monitor the server console
-
-Connections, Session checks, API requests, and remote commands appear in the server console as they happen, making the agent's work easy to follow and audit.
-
-<video src="./public/demo-console.mp4" controls muted playsinline width="100%"></video>
-
-[Open the video directly](./public/demo-console.mp4)
-
-## Why Agent RemoteOps
-
-Coding agents such as Codex and Claude Code are far more useful when they can inspect the environment where an application actually runs: processes, listening ports, systemd services, logs, deployed files, and health endpoints. Direct SSH access, however, is often impractical for hosts behind private networks, firewalls, or restrictive security groups—and permanent agent credentials are rarely a good tradeoff.
-
-Agent RemoteOps creates a temporary, outbound-only path for these situations. It is designed around short-lived access, controlled execution, and visible activity, complementing SSH and bastion hosts when they are unavailable or inconvenient.
-
-Each Session works as follows:
-
-1. A local HTTP service listens only on `127.0.0.1` of the remote host.
-2. Cloudflare Quick Tunnel provides a temporary public URL.
-3. Protected requests require a random Session Token and the bound Client ID.
-4. A TTL and either `readonly` or `full` mode define the Session scope.
-5. Expiry or manual shutdown stops the service, Tunnel, jobs, and tracked child processes.
-
-```text
-Local coding agent
-        │  Agent RemoteOps Skill
-        ▼
-Cloudflare Quick Tunnel
-        │  Token + Client ID
-        ▼
-RemoteOps service on 127.0.0.1
-        ├── controlled file access
-        └── validated command jobs
-```
-
-The remote host only needs outbound HTTPS access. Quick Tunnel requires no inbound firewall rule, Cloudflare account, or fixed public hostname.
-
-## What you can do
-
-- Connect Codex to a remote Linux host without exposing SSH or opening an inbound firewall port.
-- Use a capable coding agent to investigate service failures and security issues in the real runtime environment.
-- Inspect services, processes, ports, logs, disks, Docker, Git, and application health endpoints.
-- View and download remote files; with explicit authorization, upload files or run commands that make changes.
-- Default to `readonly` mode to reduce the risk of accidental modification.
-- Let the Session expire automatically or stop it at any time with `Ctrl+C`, while following all activity in the server console.
-
 ## Requirements
 
-### Remote Linux host
+### Remote Linux
 
 - Linux x64 or arm64
 - Node.js 22 or later
-- Outbound HTTPS access to GitHub Releases and Cloudflare
+- Outbound HTTPS access to npm, GitHub Releases, and Cloudflare
 
 ### Local Codex
 
-- A working Codex installation
+- Codex with the Agent RemoteOps Skill installed
+- macOS or Linux
+- Python 3.10 or later
 - Network access to the generated `trycloudflare.com` URL
 
 ## Installation
 
-### Install the CLI on the remote server
-
-Install the CLI only on the Linux server you want to inspect:
+### Remote Linux: install the CLI
 
 ```bash
 npm install -g agent-remoteops
-```
-
-Verify the installation:
-
-```bash
 agent-remoteops --version
-agent-remoteops --help
 ```
 
-To update an existing installation:
-
-```bash
-npm update -g agent-remoteops
-```
-
-### Install the Skill in local Codex
-
-Send the following prompt to Codex to install the project Skill:
-
-```text
-Install the Agent RemoteOps Skill from this GitHub directory:
-https://github.com/wwenj/AgentRemoteOps/tree/master/skills/agent-remoteops
-```
-
-## Usage
-
-On the remote Linux host, enter the directory you want to inspect and run `agent-remoteops start`. Give the displayed URL, Token, and your task to a coding agent with the [Agent RemoteOps Skill](https://github.com/wwenj/AgentRemoteOps/tree/master/skills/agent-remoteops) installed.
-
-See the three demo videos above for the complete flow, from starting a Session to running a Codex task and monitoring the console. Press `Ctrl+C` when you are done.
-
-## CLI reference
+The CLI is server-only:
 
 | Command | Purpose |
 | --- | --- |
-| `start` | Start a temporary Session |
-| `connect <url>` | Connect to a Session manually |
-| `status` | Show permissions, working directory, and expiry |
-| `exec <command>` | Run a remote command |
-| `list` / `stat` / `read` / `write` | Work with remote files |
-| `jobs` / `cancel` | Inspect or cancel jobs |
-| `disconnect` | Remove locally saved Session details |
+| `agent-remoteops start` | Interactively create a temporary Session |
+| `agent-remoteops policy show readonly` | Show the readonly policy summary |
+| `agent-remoteops policy show full` | Show the full policy summary |
 
-## Permission modes and security boundaries
+### Local Codex: install only the Skill
 
-| Mode | Access | Recommendation |
-| --- | --- | --- |
-| `readonly` | Reads files available to the runtime user and allows only approved read-only commands | Use by default for inspection and diagnosis |
-| `full` | Reads and writes files and runs arbitrary shell commands | Use only with explicit authorization |
+Ask Codex to install this GitHub directory:
 
-- The initial working directory is not an access boundary. Both modes inherit the permissions of the Linux user running the service.
-- `readonly` prevents writes and high-risk commands, but it does not prevent access to sensitive readable data.
-- `full` does not restrict command content. Avoid running Agent RemoteOps as `root`.
-- Treat the URL and Token as temporary credentials. Quick Tunnel is intended for short-lived tasks, not as a permanent production access path.
+```text
+Install the Agent RemoteOps Skill from:
+https://github.com/wwenj/AgentRemoteOps/tree/master/skills/agent-remoteops
+```
+
+Do not install the npm CLI locally. If a 0.2.x client was previously installed, remove it manually:
+
+```bash
+npm uninstall -g agent-remoteops
+```
+
+Version 0.3.0 does not read, migrate, or delete the legacy `${XDG_CONFIG_HOME:-~/.config}/agent-remoteops/sessions.json` file.
+
+## Quick start
+
+1. On remote Linux, enter the desired initial directory and run:
+
+   ```bash
+   cd /srv/app
+   agent-remoteops start
+   ```
+
+2. Select the language, lifetime, `readonly` or `full`, initial working directory, and audit setting. Confirm startup and wait for the Session block.
+3. Send its URL, Token, and a concrete task to Codex with the Skill installed.
+4. Codex submits the Token through the Skill's masked prompt, verifies the authenticated server scope, and performs the task. The user does not run a local connection command.
+5. Press Ctrl+C in the remote terminal when finished, or let the TTL expire.
+
+## Permission and security boundaries
+
+| Mode | File access | Command access | Intended use |
+| --- | --- | --- | --- |
+| `readonly` | Reads paths available to the runtime user; no writes | Argument-level allowlist without a shell; validated sequences and pipelines | Default diagnostics |
+| `full` | Reads and writes paths available to the runtime user | Unrestricted `/bin/bash -lc` commands | Explicitly authorized repair |
+
+- `workingDirectory` is only the relative-path base and initial cwd, not an access boundary.
+- `readonly` protects integrity, not confidentiality. It can still read sensitive files available to the runtime user.
+- `full` is a server capability, not authorization for a particular mutation.
+- The first authenticated request binds one Client ID. An unsupported protocol cannot claim that binding.
+- The Token is never passed through command arguments or environment variables. It is entered through a masked TTY prompt and stored only in an expiring `0600` temporary state file.
+- Quick Tunnel has no SLA and is not suitable for persistent administration or production traffic.
+- Normal shutdown cleans tracked processes but cannot roll back persistent side effects or guarantee cleanup after SIGKILL or host failure.
+
+## Protocol v2
+
+Version 0.3.0 introduces the intentionally incompatible Protocol v2. Every protected request requires a Bearer Token, UUID Client ID, and `X-Agent-RemoteOps-Protocol: 2`; Job creation and file writes also require an `Idempotency-Key`. Legacy `/v1/*` endpoints, 0.2.x local clients, state migration, and protocol downgrade are not supported.
+
+The server exposes Session metadata, asynchronous Job polling and cancellation, plus structured `stat`, `list`, `read`, and `write` operations. A Job defaults to a 60-second timeout and is capped at 10 minutes and 4 MiB of captured output. Structured file operations are capped at 10 MiB per file.
+
+## Development
+
+```bash
+corepack enable
+pnpm install --frozen-lockfile
+pnpm check
+git diff --check
+```
+
+Development requires Node.js 22+ and Python 3.10+. `pnpm check` covers TypeScript, Vitest, the Python Skill client, Skill validation, the production build, and npm package inspection.
 
 ## License
 
