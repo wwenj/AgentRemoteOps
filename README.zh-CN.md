@@ -36,17 +36,17 @@ Agent RemoteOps 在远程 Linux 上启动一个仅监听 `127.0.0.1` 的临时�
 
 ### 1. 在远程 Linux 启动 Session
 
-https://github.com/user-attachments/assets/fbdbfffc-45fb-4570-a29a-0e5936de580a
+![在远程 Linux 启动 Session](./public/demo-start.gif)
 
 ### 2. 把 Session 和任务直接交给 Codex
 
-https://github.com/user-attachments/assets/ceefcfb1-6c5d-42c8-84cf-aab5a5a41422
+![把 Session 和任务交给 Codex](./public/demo-codex.gif)
 
 ### 3. 查看远程控制台实时日志
 
 控制台会实时显示 Agent 的连接、认证、请求和命令 Job 日志，便于观察执行进度与审计记录。
 
-https://github.com/user-attachments/assets/f0023ce0-07c3-4946-8803-329c76188cbb
+![远程控制台实时日志](./public/demo-console.gif)
 
 ## 环境要求
 

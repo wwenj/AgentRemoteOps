@@ -36,17 +36,17 @@ Remote Linux
 
 ### 1. Start a Session on remote Linux
 
-https://github.com/user-attachments/assets/fbdbfffc-45fb-4570-a29a-0e5936de580a
+![Start a Session on remote Linux](./public/demo-start.gif)
 
 ### 2. Give the Session and task directly to Codex
 
-https://github.com/user-attachments/assets/ceefcfb1-6c5d-42c8-84cf-aab5a5a41422
+![Give the Session and task directly to Codex](./public/demo-codex.gif)
 
 ### 3. Watch the remote console in real time
 
 The remote console shows the Agent's connection, authentication, requests, and command Job logs in real time for execution tracking and auditing.
 
-https://github.com/user-attachments/assets/f0023ce0-07c3-4946-8803-329c76188cbb
+![Remote console logs in real time](./public/demo-console.gif)
 
 ## Requirements
 
