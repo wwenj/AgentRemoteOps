@@ -21,7 +21,7 @@ Agent RemoteOps starts an HTTP service bound only to `127.0.0.1` on the remote h
 Local Codex
   `- Agent RemoteOps Skill
        `- bundled Python client
-              | HTTPS + Token + Client ID + Protocol v2
+              | HTTPS + Token
               v
        Cloudflare Quick Tunnel
               v
@@ -113,27 +113,9 @@ https://github.com/wwenj/AgentRemoteOps/tree/master/skills/agent-remoteops
 - `workingDirectory` is only the relative-path base and initial cwd, not an access boundary.
 - `readonly` protects integrity, not confidentiality. It can still read sensitive files available to the runtime user.
 - `full` is a server capability, not authorization for a particular mutation.
-- The first authenticated request binds one Client ID. An unsupported protocol cannot claim that binding.
 - The Token is never passed through command arguments or environment variables. It is entered through a masked TTY prompt and stored only in an expiring `0600` temporary state file.
 - Quick Tunnel has no SLA and is not suitable for persistent administration or production traffic.
 - Normal shutdown cleans tracked processes but cannot roll back persistent side effects or guarantee cleanup after SIGKILL or host failure.
-
-## Protocol v2
-
-Version 0.3.0 introduces the intentionally incompatible Protocol v2. Every protected request requires a Bearer Token, UUID Client ID, and `X-Agent-RemoteOps-Protocol: 2`; Job creation and file writes also require an `Idempotency-Key`. Legacy `/v1/*` endpoints, 0.2.x local clients, state migration, and protocol downgrade are not supported.
-
-The server exposes Session metadata, asynchronous Job polling and cancellation, plus structured `stat`, `list`, `read`, and `write` operations. A Job defaults to a 60-second timeout and is capped at 10 minutes and 4 MiB of captured output. Structured file operations are capped at 10 MiB per file.
-
-## Development
-
-```bash
-corepack enable
-pnpm install --frozen-lockfile
-pnpm check
-git diff --check
-```
-
-Development requires Node.js 22+ and Python 3.10+. `pnpm check` covers TypeScript, Vitest, the Python Skill client, Skill validation, the production build, and npm package inspection.
 
 ## License
 

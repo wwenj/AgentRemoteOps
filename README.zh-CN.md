@@ -21,7 +21,7 @@ Agent RemoteOps 在远程 Linux 上启动一个仅监听 `127.0.0.1` 的临时�
 本地 Codex
   └─ Agent RemoteOps Skill
        └─ Skill 内置 Python 客户端
-              │ HTTPS + Token + Client ID + Protocol v2
+              │ HTTPS + Token
               ▼
        Cloudflare Quick Tunnel
               ▼
@@ -34,11 +34,11 @@ Agent RemoteOps 在远程 Linux 上启动一个仅监听 `127.0.0.1` 的临时�
 
 ## 使用演示
 
-### 1. 在远程 Linux 启动 Session
+### 1. 在远程 Linux 服务器中启动临时会话连接
 
 ![在远程 Linux 启动 Session](./public/demo-start.gif)
 
-### 2. 把 Session 和任务直接交给 Codex
+### 2. 把临时会话连接和任务直接交给 Codex
 
 ![把 Session 和任务交给 Codex](./public/demo-codex.gif)
 
@@ -113,27 +113,9 @@ https://github.com/wwenj/AgentRemoteOps/tree/master/skills/agent-remoteops
 - `workingDirectory` 只负责相对路径和命令初始 cwd，不是访问边界。
 - `readonly` 保护系统完整性，不保护信息机密性；它仍能读取运行用户可访问的敏感文件。
 - `full` 只是服务端能力，不代表用户已经授权某次修改。
-- 首次成功认证会绑定唯一 Client ID；错误协议不会占用绑定。
 - Token 不进入命令参数或环境变量，只通过 TTY 掩码输入，并以 `0600` 保存到自动过期的临时状态文件。
 - Quick Tunnel 没有 SLA，不适合长期管理或承载生产流量。
 - 正常退出可以清理受跟踪进程，但不能回滚命令已产生的持久化副作用，也无法覆盖 `SIGKILL` 或主机故障。
-
-## Protocol v2
-
-0.3.0 使用破坏性的 Protocol v2。所有受保护请求必须包含 Bearer Token、UUID Client ID 和 `X-Agent-RemoteOps-Protocol: 2`；创建 Job 和文件写入还要求 `Idempotency-Key`。旧版 `/v1/*` 和 0.2.x 本地客户端不受支持，也不会提供协议降级。
-
-服务端提供 Session、Job 轮询/取消以及结构化的 `stat`、`list`、`read`、`write` API。单个 Job 默认超时 60 秒，最大 10 分钟；输出上限 4 MiB；文件 API 单文件上限 10 MiB。
-
-## 本地开发
-
-```bash
-corepack enable
-pnpm install --frozen-lockfile
-pnpm check
-git diff --check
-```
-
-开发和测试同时需要 Node.js 22+ 与 Python 3.10+。`pnpm check` 会执行 TypeScript、Vitest、Python Skill、Skill 结构验证、生产构建和 npm 打包检查。
 
 ## 许可证
 
