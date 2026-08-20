@@ -32,7 +32,7 @@ def session(session_id: str, token: str = "secret-token"):
         token=token,
         client_id="11111111-1111-4111-8111-111111111111",
         expires_at=future(),
-        server_version="0.3.0",
+        server_version="0.3.1",
         protocol_version=2,
         mode="readonly",
         working_directory="/srv/app",
@@ -51,7 +51,7 @@ class SessionHandler(BaseHTTPRequestHandler):
             return
         payload = {
             "id": "session-test",
-            "serverVersion": "0.3.0",
+            "serverVersion": "0.3.1",
             "protocolVersion": type(self).response_protocol,
             "locale": "zh-CN",
             "mode": "readonly",

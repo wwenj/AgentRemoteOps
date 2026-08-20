@@ -7,7 +7,13 @@ import { AgentRemoteOpsRuntime } from "./runtime.js";
 import type { Locale, PermissionMode, SessionConfig } from "./types.js";
 import { createId, parseDuration } from "./utils.js";
 import { describePolicy } from "./policy.js";
-import { renderConfiguration, renderIntro, renderSessionReady } from "./terminal-ui.js";
+import {
+  renderConfiguration,
+  renderIntro,
+  renderSessionReady,
+  startLoadingIndicator,
+  terminalColorEnabled,
+} from "./terminal-ui.js";
 
 async function ask<T>(prompt: () => Promise<T>): Promise<T> {
   const answer = await prompt();
@@ -96,9 +102,13 @@ export async function startInteractive(): Promise<void> {
     cancelled(locale);
     return;
   }
-  process.stdout.write(`${localize(locale, "正在启动 Agent RemoteOps，请稍候……", "Starting Agent RemoteOps. Please wait...")}\n`);
+  const color = terminalColorEnabled();
+  const stopLoading = startLoadingIndicator(
+    localize(locale, "正在启动 Agent RemoteOps，请稍候……", "Starting Agent RemoteOps. Please wait..."),
+    { color },
+  );
   const runtime = new AgentRemoteOpsRuntime(config);
-  const session = await runtime.start();
+  const session = await runtime.start(stopLoading).finally(stopLoading);
   process.stdout.write(renderSessionReady({
     url: session.url,
     token: session.token,
@@ -106,6 +116,6 @@ export async function startInteractive(): Promise<void> {
     workingDirectory,
     ttlMs,
     mode,
-  }, locale));
+  }, locale, { color }));
   await runtime.wait();
 }

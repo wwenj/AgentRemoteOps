@@ -29,7 +29,7 @@ export class AgentRemoteOpsRuntime {
 
   constructor(private readonly config: SessionConfig) {}
 
-  async start(): Promise<{ url: string; token: string; expiresAt: Date }> {
+  async start(onStartupFailure?: () => void): Promise<{ url: string; token: string; expiresAt: Date }> {
     this.logger = new OperationLogger(this.config.auditDir, this.config.id, this.config.auditEnabled, this.config.locale);
     this.tempDirectory = await mkdtemp(path.join(tmpdir(), "agent-remoteops-"));
     const tunnelConfig = path.join(this.tempDirectory, "cloudflared.yml");
@@ -64,6 +64,7 @@ export class AgentRemoteOpsRuntime {
       this.logger.event({ action: "session.start", status: "ready", message: tunnel.url }, { console: false });
       return { url: tunnel.url, token, expiresAt };
     } catch (error) {
+      onStartupFailure?.();
       await this.shutdown("startup-failed", 1);
       throw error;
     }

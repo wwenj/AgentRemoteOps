@@ -2,6 +2,22 @@ import { DEFAULT_LOCALE, localize } from "./i18n.js";
 import type { Locale, PermissionMode } from "./types.js";
 
 const divider = "─".repeat(64);
+const successDivider = "━".repeat(64);
+const spinnerFrames = ["⣋", "⣙", "⣹", "⣸", "⣼", "⣴", "⣦", "⣧", "⣇", "⣏"] as const;
+
+const ansi = {
+  reset: "\u001B[0m",
+  clearLine: "\u001B[2K",
+  cyan: "\u001B[96m",
+  green: "\u001B[92m",
+  yellow: "\u001B[93m",
+  red: "\u001B[91m",
+  boldGreen: "\u001B[1;92m",
+} as const;
+
+export interface TerminalRenderOptions {
+  color?: boolean;
+}
 
 export interface ConfigurationSummary {
   workingDirectory: string;
@@ -20,6 +36,38 @@ export interface SessionSummary {
   workingDirectory: string;
   ttlMs: number;
   mode: PermissionMode;
+}
+
+function styled(value: string, style: string, enabled: boolean): string {
+  return enabled ? `${style}${value}${ansi.reset}` : value;
+}
+
+export function terminalColorEnabled(): boolean {
+  return Boolean(process.stdout.isTTY) && process.env.NO_COLOR === undefined;
+}
+
+export function startLoadingIndicator(
+  message: string,
+  options: TerminalRenderOptions = {},
+  write: (chunk: string) => void = (chunk) => process.stdout.write(chunk),
+): () => void {
+  const color = options.color ?? terminalColorEnabled();
+  let frameIndex = 0;
+  let stopped = false;
+  const render = () => {
+    const frame = spinnerFrames[frameIndex % spinnerFrames.length] ?? spinnerFrames[0];
+    frameIndex += 1;
+    write(`\r${ansi.clearLine}${styled(frame, ansi.cyan, color)} ${message}`);
+  };
+  render();
+  const timer = setInterval(render, 80);
+  timer.unref();
+  return () => {
+    if (stopped) return;
+    stopped = true;
+    clearInterval(timer);
+    write(`\r${ansi.clearLine}`);
+  };
 }
 
 export function formatDurationHuman(ms: number, locale: Locale = DEFAULT_LOCALE): string {
@@ -72,7 +120,12 @@ export function renderConfiguration(summary: ConfigurationSummary, locale: Local
   ].join("\n");
 }
 
-export function renderSessionReady(summary: SessionSummary, locale: Locale = DEFAULT_LOCALE): string {
+export function renderSessionReady(
+  summary: SessionSummary,
+  locale: Locale = DEFAULT_LOCALE,
+  options: TerminalRenderOptions = {},
+): string {
+  const color = options.color ?? false;
   const duration = formatDurationHuman(summary.ttlMs, locale);
   const expiresAt = summary.expiresAt.toLocaleString(locale === "en" ? "en-US" : "zh-CN", { hour12: false });
   const permissionNotice = summary.mode === "readonly"
@@ -81,12 +134,12 @@ export function renderSessionReady(summary: SessionSummary, locale: Locale = DEF
 
   return [
     "",
-    divider,
-    localize(locale, "Agent RemoteOps 临时 Session 已启动", "Agent RemoteOps temporary Session is ready"),
-    divider,
-    `URL       ${summary.url}`,
-    `Token     ${summary.token}`,
-    `${localize(locale, "权限", "Permission")}      ${formatPermission(summary.mode, locale)}`,
+    styled(successDivider, ansi.green, color),
+    styled(`✓ ${localize(locale, "Agent RemoteOps 临时 Session 已启动", "Agent RemoteOps temporary Session is ready")}`, ansi.boldGreen, color),
+    styled(successDivider, ansi.green, color),
+    `URL       ${styled(summary.url, ansi.cyan, color)}`,
+    `Token     ${styled(summary.token, ansi.yellow, color)}`,
+    `${localize(locale, "权限", "Permission")}      ${styled(formatPermission(summary.mode, locale), summary.mode === "readonly" ? ansi.green : ansi.red, color)}`,
     `${localize(locale, "初始工作目录", "Initial cwd")}  ${summary.workingDirectory}`,
     `${localize(locale, "有效期", "Lifetime")}    ${localize(locale, `${duration}（${expiresAt} 到期）`, `${duration} (expires ${expiresAt})`)}`,
     divider,

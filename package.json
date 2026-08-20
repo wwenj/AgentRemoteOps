@@ -1,6 +1,6 @@
 {
   "name": "agent-remoteops",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Temporary remote operations bridge for local coding agents",
   "type": "module",
   "bin": {

@@ -54,7 +54,7 @@ describe("Skill-bundled Python client", () => {
       token,
       client_id: "11111111-1111-4111-8111-111111111111",
       expires_at: expiresAt.toISOString(),
-      server_version: "0.3.0",
+      server_version: "0.3.1",
       protocol_version: 2,
       mode: "readonly",
       working_directory: root,
@@ -66,7 +66,7 @@ describe("Skill-bundled Python client", () => {
     const env = { ...process.env, XDG_RUNTIME_DIR: runtime };
 
     const status = await execFileAsync("python3", [script, "status"], { encoding: "utf8", env });
-    expect(JSON.parse(status.stdout)).toMatchObject({ serverVersion: "0.3.0", protocolVersion: 2, mode: "readonly" });
+    expect(JSON.parse(status.stdout)).toMatchObject({ serverVersion: "0.3.1", protocolVersion: 2, mode: "readonly" });
 
     const execute = await execFileAsync("python3", [script, "exec", "cat test.txt", "--json"], { encoding: "utf8", env });
     expect(JSON.parse(execute.stdout).chunks.map((chunk: { data: string }) => chunk.data).join("")).toContain("hello from remote");
@@ -103,7 +103,7 @@ describe("Skill-bundled Python client", () => {
     const url = `http://127.0.0.1:${server.port}`;
     await writeFile(path.join(sessions, "skill-full.json"), `${JSON.stringify({
       id: "skill-full", url, token, client_id: clientId, expires_at: expiresAt.toISOString(),
-      server_version: "0.3.0", protocol_version: 2, mode: "full", working_directory: root, locale: "zh-CN",
+      server_version: "0.3.1", protocol_version: 2, mode: "full", working_directory: root, locale: "zh-CN",
     })}\n`, { mode: 0o600 });
     await writeFile(path.join(stateRoot, "current"), `${JSON.stringify({ id: "skill-full" })}\n`, { mode: 0o600 });
     const script = path.resolve("skills/agent-remoteops/scripts/remoteops.py");
