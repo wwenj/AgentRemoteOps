@@ -1,6 +1,6 @@
 {
   "name": "agent-remoteops-cloudflared-linux-arm64",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Pinned cloudflared binary for Agent RemoteOps on Linux arm64",
   "license": "Apache-2.0",
   "os": ["linux"],

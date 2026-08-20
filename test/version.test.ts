@@ -11,7 +11,7 @@ describe("release version", () => {
     const x64 = JSON.parse(await readFile(new URL("../packages/cloudflared-linux-x64/package.json", import.meta.url), "utf8")) as { name: string; version: string; os: string[]; cpu: string[] };
     const arm64 = JSON.parse(await readFile(new URL("../packages/cloudflared-linux-arm64/package.json", import.meta.url), "utf8")) as { name: string; version: string; os: string[]; cpu: string[] };
     expect(SERVER_VERSION).toBe(packageJson.version);
-    expect(packageJson.version).toBe("0.4.0");
+    expect(packageJson.version).toBe("0.4.1");
     expect(x64).toMatchObject({ version: packageJson.version, os: ["linux"], cpu: ["x64"] });
     expect(arm64).toMatchObject({ version: packageJson.version, os: ["linux"], cpu: ["arm64"] });
     expect(packageJson.optionalDependencies[x64.name]).toBe(packageJson.version);

@@ -44,10 +44,10 @@ importers:
         version: 3.2.7(@types/node@24.13.3)(tsx@4.23.12)
     optionalDependencies:
       agent-remoteops-cloudflared-linux-arm64:
-        specifier: 0.4.0
+        specifier: 0.4.1
         version: link:packages/cloudflared-linux-arm64
       agent-remoteops-cloudflared-linux-x64:
-        specifier: 0.4.0
+        specifier: 0.4.1
         version: link:packages/cloudflared-linux-x64
 
   packages/cloudflared-linux-arm64: {}

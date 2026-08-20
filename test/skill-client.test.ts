@@ -66,7 +66,7 @@ describe("Skill-bundled Python client", () => {
     const env = { ...process.env, XDG_RUNTIME_DIR: runtime };
 
     const status = await execFileAsync("python3", [script, "status"], { encoding: "utf8", env });
-    expect(JSON.parse(status.stdout)).toMatchObject({ serverVersion: "0.4.0", protocolVersion: 2, mode: "readonly" });
+    expect(JSON.parse(status.stdout)).toMatchObject({ serverVersion: "0.4.1", protocolVersion: 2, mode: "readonly" });
 
     const execute = await execFileAsync("python3", [script, "exec", "cat test.txt", "--json"], { encoding: "utf8", env });
     expect(JSON.parse(execute.stdout).chunks.map((chunk: { data: string }) => chunk.data).join("")).toContain("hello from remote");

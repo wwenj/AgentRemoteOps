@@ -59,6 +59,8 @@ export class AgentRemoteOpsRuntime {
         logger: this.logger,
       });
       this.app = server.app;
+      onProgress?.({ stage: "local-health", message: localize(this.config.locale, "正在检查本地 HTTP 服务", "Checking the local HTTP service") });
+      await verifyLocalHealth(server.port, this.abortController.signal, this.config.locale);
       const tunnel = await startTunnel({
         port: server.port,
         registry: this.processes,
@@ -151,5 +153,17 @@ export class AgentRemoteOpsRuntime {
     process.off("SIGTERM", this.signalHandler);
     process.off("SIGHUP", this.signalHandler);
     this.signalHandler = undefined;
+  }
+}
+
+async function verifyLocalHealth(port: number, signal: AbortSignal, locale: SessionConfig["locale"]): Promise<void> {
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/healthz`, {
+      signal: AbortSignal.any([signal, AbortSignal.timeout(5_000)]),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  } catch (error) {
+    const detail = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+    throw new Error(localize(locale, `本地 HTTP 服务健康检查失败：${detail}`, `Local HTTP service health check failed: ${detail}`), { cause: error });
   }
 }

@@ -3,6 +3,7 @@ export type StartupStage =
   | "binary"
   | "download"
   | "server"
+  | "local-health"
   | "tunnel"
   | "health";
 

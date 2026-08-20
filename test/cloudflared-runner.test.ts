@@ -85,7 +85,7 @@ describe("cloudflared runner", () => {
     const binary = await script(root, "echo 'https://unhealthy-example.trycloudflare.com' >&2\nwhile true; do sleep 1; done");
     const registry = new ProcessRegistry();
     try {
-      await expect(startTunnel({
+      const failure = startTunnel({
         port: 32123,
         registry,
         configPath: path.join(root, "cloudflared.yml"),
@@ -95,7 +95,10 @@ describe("cloudflared runner", () => {
         resolveBinary: async () => binary,
         fetchImpl: vi.fn().mockResolvedValue(new Response("unavailable", { status: 503 })) as typeof fetch,
         healthTimeoutMs: 30,
-      })).rejects.toThrow("Tunnel health check failed");
+      });
+      await expect(failure).rejects.toThrow("Tunnel health check failed");
+      await expect(failure).rejects.toThrow("https://unhealthy-example.trycloudflare.com/healthz");
+      await expect(failure).rejects.toThrow("HTTP 503");
     } finally {
       await registry.terminateAll("runner-health-test");
     }
