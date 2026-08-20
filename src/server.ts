@@ -8,6 +8,7 @@ import { localize } from "./i18n.js";
 import type { OperationLogger } from "./logging.js";
 import type { Locale, PermissionMode } from "./types.js";
 import { safeTokenEqual } from "./utils.js";
+import { PROTOCOL_VERSION, SERVER_VERSION } from "./version.js";
 
 interface ServerOptions {
   sessionId: string;
@@ -48,6 +49,15 @@ export async function createServer(options: ServerOptions): Promise<{ app: Fasti
 
   app.addHook("onRequest", async (request, reply) => {
     if (request.url === "/healthz") return;
+    const protocol = request.headers["x-agent-remoteops-protocol"];
+    if (protocol !== String(PROTOCOL_VERSION)) {
+      return reply.code(426).send({
+        error: {
+          code: "PROTOCOL_VERSION_UNSUPPORTED",
+          message: localize(options.locale, `需要 Agent RemoteOps Protocol ${PROTOCOL_VERSION}`, `Agent RemoteOps Protocol ${PROTOCOL_VERSION} is required`),
+        },
+      });
+    }
     const ip = request.ip;
     const rate = authFailures.get(ip);
     if (rate && rate.resetAt > Date.now() && rate.count >= 10) {
@@ -93,7 +103,7 @@ export async function createServer(options: ServerOptions): Promise<{ app: Fasti
   });
   app.addHook("onResponse", async (request, reply) => {
     if (request.url.startsWith("/healthz")) return;
-    const quietPolling = reply.statusCode < 400 && request.method === "GET" && /^\/v1\/jobs\/[^/?]+(?:\?|$)/.test(request.url);
+    const quietPolling = reply.statusCode < 400 && request.method === "GET" && /^\/v2\/jobs\/[^/?]+(?:\?|$)/.test(request.url);
     options.logger.event({
       action: "http.request",
       message: `${request.method} ${request.url.split("?")[0]}`,
@@ -105,9 +115,10 @@ export async function createServer(options: ServerOptions): Promise<{ app: Fasti
   });
 
   app.get("/healthz", async () => ({ ok: true }));
-  app.get("/v1/session", async () => ({
+  app.get("/v2/session", async () => ({
     id: options.sessionId,
-    version: "0.2.0",
+    serverVersion: SERVER_VERSION,
+    protocolVersion: PROTOCOL_VERSION,
     locale: options.locale,
     mode: options.mode,
     workingDirectory: options.workingDirectory,
@@ -117,8 +128,8 @@ export async function createServer(options: ServerOptions): Promise<{ app: Fasti
       : ["fs.stat", "fs.list", "fs.read", "fs.write", `exec.${options.mode}`],
   }));
 
-  app.get("/v1/jobs", async () => ({ jobs: options.jobs.list() }));
-  app.post("/v1/jobs", async (request, reply) => {
+  app.get("/v2/jobs", async () => ({ jobs: options.jobs.list() }));
+  app.post("/v2/jobs", async (request, reply) => {
     const body = parseBody(jobBody, request, reply, options.locale);
     if (!body) return;
     const key = idempotencyKey(request, reply, options.locale);
@@ -136,40 +147,40 @@ export async function createServer(options: ServerOptions): Promise<{ app: Fasti
       throw error;
     }
   });
-  app.get<{ Params: { id: string }; Querystring: { cursor?: string } }>("/v1/jobs/:id", async (request, reply) => {
+  app.get<{ Params: { id: string }; Querystring: { cursor?: string } }>("/v2/jobs/:id", async (request, reply) => {
     const cursor = Number(request.query.cursor ?? 0);
     const job = options.jobs.get(request.params.id, Number.isFinite(cursor) ? cursor : 0);
     if (!job) return sendError(reply, 404, "JOB_NOT_FOUND", localize(options.locale, "Job 不存在", "Job not found"));
     return job;
   });
-  app.post<{ Params: { id: string } }>("/v1/jobs/:id/cancel", async (request, reply) => {
+  app.post<{ Params: { id: string } }>("/v2/jobs/:id/cancel", async (request, reply) => {
     const job = await options.jobs.cancel(request.params.id);
     if (!job) return sendError(reply, 404, "JOB_NOT_FOUND", localize(options.locale, "Job 不存在", "Job not found"));
     return job;
   });
 
-  app.post("/v1/fs/stat", async (request, reply) => {
+  app.post("/v2/fs/stat", async (request, reply) => {
     const body = parseBody(pathBody, request, reply, options.locale);
     if (!body) return;
     const result = await options.files.stat(body.path);
     options.logger.event({ action: "fs.stat", path: body.path, status: "success", clientIp: request.ip, clientId: shortClientId(requestClientId(request)!) });
     return result;
   });
-  app.post("/v1/fs/list", async (request, reply) => {
+  app.post("/v2/fs/list", async (request, reply) => {
     const body = parseBody(pathBody, request, reply, options.locale);
     if (!body) return;
     const entries = await options.files.list(body.path);
     options.logger.event({ action: "fs.list", path: body.path, status: "success", clientIp: request.ip, clientId: shortClientId(requestClientId(request)!) });
     return { entries };
   });
-  app.post("/v1/fs/read", async (request, reply) => {
+  app.post("/v2/fs/read", async (request, reply) => {
     const body = parseBody(pathBody, request, reply, options.locale);
     if (!body) return;
     const result = await options.files.read(body.path);
     options.logger.event({ action: "fs.read", path: body.path, status: "success", bytes: result.size, clientIp: request.ip, clientId: shortClientId(requestClientId(request)!) });
     return result;
   });
-  app.post("/v1/fs/write", async (request, reply) => {
+  app.post("/v2/fs/write", async (request, reply) => {
     const body = parseBody(writeBody, request, reply, options.locale);
     if (!body) return;
     const key = idempotencyKey(request, reply, options.locale);
@@ -200,7 +211,7 @@ export async function createServer(options: ServerOptions): Promise<{ app: Fasti
       });
       return sendError(reply, status, error.code, options.locale === "en" ? error.messageEn : error.message);
     }
-    if (request.url.startsWith("/v1/fs/")) {
+    if (request.url.startsWith("/v2/fs/")) {
       const systemCode = (error as NodeJS.ErrnoException).code;
       const status = systemCode === "ENOENT" ? 404 : systemCode === "EACCES" || systemCode === "EPERM" ? 403 : 500;
       const code = systemCode === "ENOENT" ? "FILE_NOT_FOUND"

@@ -1,6 +1,6 @@
 {
   "name": "agent-remoteops",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Temporary remote operations bridge for local coding agents",
   "type": "module",
   "bin": {
@@ -8,10 +8,21 @@
   },
   "files": [
     "dist",
-    "skills",
     "README.md",
     "LICENSE"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wwenj/AgentRemoteOps.git"
+  },
+  "homepage": "https://github.com/wwenj/AgentRemoteOps#readme",
+  "bugs": {
+    "url": "https://github.com/wwenj/AgentRemoteOps/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "engines": {
     "node": ">=22"
   },
@@ -19,8 +30,10 @@
     "build": "tsup",
     "dev": "tsx src/index.ts",
     "test": "vitest run",
+    "test:skill": "python3 -m unittest discover -s skills/agent-remoteops/tests -p 'test_*.py'",
+    "validate:skill": "python3 skills/agent-remoteops/tests/validate_skill.py",
     "typecheck": "tsc --noEmit",
-    "check": "pnpm typecheck && pnpm test && pnpm build"
+    "check": "pnpm typecheck && pnpm test && pnpm test:skill && pnpm validate:skill && pnpm build && npm pack --dry-run"
   },
   "keywords": [
     "agent",

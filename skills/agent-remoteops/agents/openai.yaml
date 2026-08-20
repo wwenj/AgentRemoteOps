@@ -1,0 +1,6 @@
+interface:
+  display_name: "Agent RemoteOps"
+  short_description: "通过临时 Session 安全诊断远程 Linux 主机"
+  default_prompt: "Use $agent-remoteops to connect to this temporary Session and diagnose the requested Linux issue."
+policy:
+  allow_implicit_invocation: true

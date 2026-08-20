@@ -4,3 +4,5 @@ coverage/
 .DS_Store
 *.log
 pnpm-debug.log*
+__pycache__/
+*.pyc

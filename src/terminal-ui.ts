@@ -77,7 +77,7 @@ export function renderSessionReady(summary: SessionSummary, locale: Locale = DEF
   const expiresAt = summary.expiresAt.toLocaleString(locale === "en" ? "en-US" : "zh-CN", { hour12: false });
   const permissionNotice = summary.mode === "readonly"
     ? localize(locale, "当前为 readonly：可读取启动用户有权访问的任意文件，但命令必须通过只读校验；该模式不保护信息机密性。", "The Session is readonly: it can read any file available to the runtime user, but commands must pass read-only validation. This mode does not protect confidentiality.")
-    : localize(locale, "当前为 full：CLI 不限制命令或文件路径，Agent 可使用启动用户拥有的全部系统权限。", "The Session is full: the CLI does not restrict commands or file paths, and the Agent inherits all permissions of the runtime user.");
+    : localize(locale, "当前为 full：服务端不限制命令或文件路径，Agent 可使用启动用户拥有的全部系统权限。", "The Session is full: the server does not restrict commands or file paths, and the Agent inherits all permissions of the runtime user.");
 
   return [
     "",
@@ -91,11 +91,8 @@ export function renderSessionReady(summary: SessionSummary, locale: Locale = DEF
     `${localize(locale, "有效期", "Lifetime")}    ${localize(locale, `${duration}（${expiresAt} 到期）`, `${duration} (expires ${expiresAt})`)}`,
     divider,
     "",
-    localize(locale, "请复制以上 URL 和 Token，发送给已安装 Agent RemoteOps Skill 的 Codex、", "Copy the URL and Token above and send them to Codex, Claude Code, or another"),
-    localize(locale, "Claude Code 或其他 Coding Agent，即可让 Agent 连接并开始临时排查。", "Coding Agent with the Agent RemoteOps Skill installed."),
-    "",
-    localize(locale, "本地手动连接", "Manual local connection"),
-    `  agent-remoteops connect ${summary.url}`,
+    localize(locale, "请复制以上 URL、Token 和任务，发送给已安装 Agent RemoteOps Skill 的 Codex。", "Copy the URL, Token, and task above to Codex with the Agent RemoteOps Skill installed."),
+    localize(locale, "本地只需要安装 Skill，不需要安装 agent-remoteops CLI。", "Only the Skill is required locally; do not install the agent-remoteops CLI."),
     "",
     localize(locale, "使用与安全提示", "Usage and security notes"),
     localize(locale, "  • URL 和 Token 都属于临时敏感凭据，请只发送给本次授权的 Agent。", "  • URL and Token are temporary sensitive credentials. Share them only with the Agent authorized for this Session."),

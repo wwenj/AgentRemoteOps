@@ -43,9 +43,10 @@ describe("terminal UI", () => {
 
     expect(output).toContain("URL       https://example.trycloudflare.com");
     expect(output).toContain("Token     arops_example");
-    expect(output).toContain("复制以上 URL 和 Token");
+    expect(output).toContain("复制以上 URL、Token 和任务");
     expect(output).toContain("Codex");
-    expect(output).toContain("Claude Code");
+    expect(output).toContain("本地只需要安装 Skill");
+    expect(output).not.toContain("agent-remoteops connect");
     expect(output).toContain("Client ID 将成为本次 Session 唯一客户端");
     expect(output).toContain("不构成权限边界");
     expect(output).toContain("Session 将在 30 分钟后自动到期");

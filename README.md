@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./public/logo.png" alt="Agent RemoteOps Logo" width="160">
+  <img src="https://raw.githubusercontent.com/wwenj/AgentRemoteOps/master/public/logo.png" alt="Agent RemoteOps Logo" width="160">
 </p>
 
 <h1 align="center">Agent RemoteOps</h1>
@@ -38,15 +38,17 @@ The local machine does not install the `agent-remoteops` npm CLI.
 
 ### 1. Start a Session on remote Linux
 
-<video src="./public/demo-start.mp4" controls muted playsinline width="100%"></video>
-
-[Open the video directly](./public/demo-start.mp4)
+https://github.com/user-attachments/assets/fbdbfffc-45fb-4570-a29a-0e5936de580a
 
 ### 2. Give the Session and task directly to Codex
 
-<video src="./public/demo-codex.mp4" controls muted playsinline width="100%"></video>
+https://github.com/user-attachments/assets/ceefcfb1-6c5d-42c8-84cf-aab5a5a41422
 
-[Open the video directly](./public/demo-codex.mp4)
+### 3. Watch the remote console in real time
+
+The remote console shows the Agent's connection, authentication, requests, and command Job logs in real time for execution tracking and auditing.
+
+https://github.com/user-attachments/assets/f0023ce0-07c3-4946-8803-329c76188cbb
 
 ## Requirements
 

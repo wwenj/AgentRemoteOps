@@ -46,20 +46,45 @@ const clientA = "11111111-1111-4111-8111-111111111111";
 const clientB = "22222222-2222-4222-8222-222222222222";
 
 function auth(token: string, extra: Record<string, string> = {}) {
-  return { authorization: `Bearer ${token}`, "x-agent-remoteops-client-id": clientA, ...extra };
+  return {
+    authorization: `Bearer ${token}`,
+    "x-agent-remoteops-client-id": clientA,
+    "x-agent-remoteops-protocol": "2",
+    ...extra,
+  };
 }
 
 describe("HTTP server", () => {
   it("exposes only health without authentication", async () => {
     const context = await fixture();
     expect((await context.app.inject({ method: "GET", url: "/healthz" })).statusCode).toBe(200);
-    expect((await context.app.inject({ method: "GET", url: "/v1/session" })).statusCode).toBe(401);
-    const session = await context.app.inject({ method: "GET", url: "/v1/session", headers: auth(context.token) });
+    expect((await context.app.inject({ method: "GET", url: "/v2/session" })).statusCode).toBe(426);
+    expect((await context.app.inject({ method: "GET", url: "/v2/session", headers: { "x-agent-remoteops-protocol": "2" } })).statusCode).toBe(401);
+    const session = await context.app.inject({ method: "GET", url: "/v2/session", headers: auth(context.token) });
     expect(session.statusCode).toBe(200);
     expect(session.json().mode).toBe("readonly");
-    expect(session.json().version).toBe("0.2.0");
+    expect(session.json().serverVersion).toBe("0.3.0");
+    expect(session.json().protocolVersion).toBe(2);
     expect(session.json().workingDirectory).toBeTypeOf("string");
     expect(session.json().workspace).toBeUndefined();
+  });
+
+  it("rejects legacy clients before binding a Client ID", async () => {
+    const context = await fixture();
+    const legacy = await context.app.inject({
+      method: "GET",
+      url: "/v1/session",
+      headers: { authorization: `Bearer ${context.token}`, "x-agent-remoteops-client-id": clientA },
+    });
+    expect(legacy.statusCode).toBe(426);
+    expect(legacy.json().error.code).toBe("PROTOCOL_VERSION_UNSUPPORTED");
+
+    const current = await context.app.inject({
+      method: "GET",
+      url: "/v2/session",
+      headers: auth(context.token, { "x-agent-remoteops-client-id": clientB }),
+    });
+    expect(current.statusCode).toBe(200);
   });
 
   it("requires and binds a stable Client ID instead of an IP", async () => {
@@ -71,18 +96,18 @@ describe("HTTP server", () => {
     expect((await context.app.inject({ method: "GET", url: "/healthz", headers: otherClient })).statusCode).toBe(200);
     expect((await context.app.inject({
       method: "GET",
-      url: "/v1/session",
+      url: "/v2/session",
       headers: auth("invalid-token", { "x-forwarded-for": "203.0.113.11" }),
     })).statusCode).toBe(401);
-    expect((await context.app.inject({ method: "GET", url: "/v1/session", headers: firstClient })).statusCode).toBe(200);
-    expect((await context.app.inject({ method: "GET", url: "/v1/session", headers: sameClientNewIp })).statusCode).toBe(200);
+    expect((await context.app.inject({ method: "GET", url: "/v2/session", headers: firstClient })).statusCode).toBe(200);
+    expect((await context.app.inject({ method: "GET", url: "/v2/session", headers: sameClientNewIp })).statusCode).toBe(200);
 
-    const rejected = await context.app.inject({ method: "GET", url: "/v1/session", headers: otherClient });
+    const rejected = await context.app.inject({ method: "GET", url: "/v2/session", headers: otherClient });
     expect(rejected.statusCode).toBe(403);
     expect(rejected.json().error.code).toBe("CLIENT_ID_NOT_ALLOWED");
 
     const missing = await context.app.inject({
-      method: "GET", url: "/v1/session", headers: { authorization: `Bearer ${context.token}` },
+      method: "GET", url: "/v2/session", headers: { authorization: `Bearer ${context.token}`, "x-agent-remoteops-protocol": "2" },
     });
     expect(missing.statusCode).toBe(400);
     expect(missing.json().error.code).toBe("CLIENT_ID_REQUIRED");
@@ -90,15 +115,15 @@ describe("HTTP server", () => {
 
   it("returns English messages for an English Session", async () => {
     const context = await fixture("readonly", "en");
-    const unauthorized = await context.app.inject({ method: "GET", url: "/v1/session" });
+    const unauthorized = await context.app.inject({ method: "GET", url: "/v2/session", headers: { "x-agent-remoteops-protocol": "2" } });
     expect(unauthorized.statusCode).toBe(401);
     expect(unauthorized.json().error.message).toBe("Invalid Token");
 
-    const session = await context.app.inject({ method: "GET", url: "/v1/session", headers: auth(context.token) });
+    const session = await context.app.inject({ method: "GET", url: "/v2/session", headers: auth(context.token) });
     expect(session.json().locale).toBe("en");
 
     const write = await context.app.inject({
-      method: "POST", url: "/v1/fs/write",
+      method: "POST", url: "/v2/fs/write",
       headers: auth(context.token, { "idempotency-key": "english-write-key" }),
       payload: { path: "test.txt", content: Buffer.from("x").toString("base64"), encoding: "base64" },
     });
@@ -109,11 +134,11 @@ describe("HTTP server", () => {
   it("reads files and rejects readonly writes", async () => {
     const context = await fixture();
     const read = await context.app.inject({
-      method: "POST", url: "/v1/fs/read", headers: auth(context.token), payload: { path: "test.txt" },
+      method: "POST", url: "/v2/fs/read", headers: auth(context.token), payload: { path: "test.txt" },
     });
     expect(Buffer.from(read.json().content, "base64").toString()).toBe("hello");
     const write = await context.app.inject({
-      method: "POST", url: "/v1/fs/write",
+      method: "POST", url: "/v2/fs/write",
       headers: auth(context.token, { "idempotency-key": "write-test-key" }),
       payload: { path: "test.txt", content: Buffer.from("x").toString("base64"), encoding: "base64" },
     });
@@ -121,7 +146,7 @@ describe("HTTP server", () => {
     expect(write.json().error.code).toBe("CAPABILITY_DENIED");
 
     const missing = await context.app.inject({
-      method: "POST", url: "/v1/fs/read", headers: auth(context.token), payload: { path: "/definitely-not-an-agent-remoteops-file" },
+      method: "POST", url: "/v2/fs/read", headers: auth(context.token), payload: { path: "/definitely-not-an-agent-remoteops-file" },
     });
     expect(missing.statusCode).toBe(404);
     expect(missing.json().error.code).toBe("FILE_NOT_FOUND");
@@ -130,7 +155,7 @@ describe("HTTP server", () => {
   it("keeps successful Job polling in audit but suppresses it from terminal output", async () => {
     const context = await fixture("readonly", "zh-CN", true);
     const created = await context.app.inject({
-      method: "POST", url: "/v1/jobs",
+      method: "POST", url: "/v2/jobs",
       headers: auth(context.token, { "idempotency-key": "command-test-key" }),
       payload: { command: "cat test.txt" },
     });
@@ -139,17 +164,17 @@ describe("HTTP server", () => {
     const write = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     let result;
     for (let index = 0; index < 50; index += 1) {
-      result = await context.app.inject({ method: "GET", url: `/v1/jobs/${id}`, headers: auth(context.token) });
+      result = await context.app.inject({ method: "GET", url: `/v2/jobs/${id}`, headers: auth(context.token) });
       if (result.json().status === "succeeded") break;
       await new Promise((resolve) => setTimeout(resolve, 20));
     }
     expect(result!.json().status).toBe("succeeded");
     expect(result!.json().chunks[0].data).toContain("hello");
     const terminalOutput = write.mock.calls.map(([value]) => String(value)).join("");
-    expect(terminalOutput).not.toContain(`GET /v1/jobs/${id}`);
+    expect(terminalOutput).not.toContain(`GET /v2/jobs/${id}`);
     write.mockRestore();
     await context.logger.close();
     const audit = await readFile(path.join(context.root, "server-test.jsonl"), "utf8");
-    expect(audit).toContain(`GET /v1/jobs/${id}`);
+    expect(audit).toContain(`GET /v2/jobs/${id}`);
   });
 });

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./public/logo.png" alt="Agent RemoteOps Logo" width="160">
+  <img src="https://raw.githubusercontent.com/wwenj/AgentRemoteOps/master/public/logo.png" alt="Agent RemoteOps Logo" width="160">
 </p>
 
 <h1 align="center">Agent RemoteOps</h1>
