@@ -6,7 +6,7 @@
 
 <p align="center">English | <a href="./README.zh-CN.md">简体中文</a></p>
 
-<p align="center">A short-lived, auditable remote-operations bridge with a server-only Linux CLI and a self-contained local Codex Skill.</p>
+<p align="center">Give Codex temporary, controlled access to a remote Linux host for diagnostics and maintenance, with scoped permissions, expiring Sessions, and auditable execution.</p>
 
 > [!WARNING]
 > Remote commands executed by an agent are risky. Prefer `readonly`. The `full` mode inherits the permissions of the Linux user that starts the server. Understand the security boundaries below before using it on important systems.
@@ -15,7 +15,7 @@
 
 A local Codex cannot normally inspect the real processes, ports, systemd units, containers, logs, and deployment files on a remote Linux host. Permanent SSH credentials are broader and longer-lived than a temporary diagnostic task requires, while exposing a management port increases the attack surface.
 
-Agent RemoteOps starts an HTTP service bound only to `127.0.0.1` on the remote host and exposes it through a temporary Cloudflare Quick Tunnel. Give the generated URL, Token, and task to Codex with the Agent RemoteOps Skill installed. The Session shuts down its HTTP server, Tunnel, Jobs, and tracked child processes on Ctrl+C or TTL expiry.
+Agent RemoteOps starts an HTTP service bound only to `127.0.0.1` on the remote host and exposes it through a temporary Cloudflare Quick Tunnel. Give the generated URL, Token, and task to Codex. The Session shuts down its HTTP server, Tunnel, Jobs, and tracked child processes on Ctrl+C or TTL expiry.
 
 ```text
 Local Codex
@@ -31,8 +31,6 @@ Remote Linux
        |- command Jobs
        `- policy, TTL, audit, and process cleanup
 ```
-
-The local machine does not install the `agent-remoteops` npm CLI.
 
 ## Demo
 
@@ -74,15 +72,15 @@ npm install -g agent-remoteops
 agent-remoteops --version
 ```
 
-The CLI is server-only:
+The CLI starts and manages remote Sessions:
 
-| Command | Purpose |
-| --- | --- |
-| `agent-remoteops start` | Interactively create a temporary Session |
-| `agent-remoteops policy show readonly` | Show the readonly policy summary |
-| `agent-remoteops policy show full` | Show the full policy summary |
+| Command                                | Purpose                                  |
+| -------------------------------------- | ---------------------------------------- |
+| `agent-remoteops start`                | Interactively create a temporary Session |
+| `agent-remoteops policy show readonly` | Show the readonly policy summary         |
+| `agent-remoteops policy show full`     | Show the full policy summary             |
 
-### Local Codex: install only the Skill
+### Local Codex: install the Skill
 
 Ask Codex to install this GitHub directory:
 
@@ -90,14 +88,6 @@ Ask Codex to install this GitHub directory:
 Install the Agent RemoteOps Skill from:
 https://github.com/wwenj/AgentRemoteOps/tree/master/skills/agent-remoteops
 ```
-
-Do not install the npm CLI locally. If a 0.2.x client was previously installed, remove it manually:
-
-```bash
-npm uninstall -g agent-remoteops
-```
-
-Version 0.3.0 does not read, migrate, or delete the legacy `${XDG_CONFIG_HOME:-~/.config}/agent-remoteops/sessions.json` file.
 
 ## Quick start
 
@@ -115,10 +105,10 @@ Version 0.3.0 does not read, migrate, or delete the legacy `${XDG_CONFIG_HOME:-~
 
 ## Permission and security boundaries
 
-| Mode | File access | Command access | Intended use |
-| --- | --- | --- | --- |
-| `readonly` | Reads paths available to the runtime user; no writes | Argument-level allowlist without a shell; validated sequences and pipelines | Default diagnostics |
-| `full` | Reads and writes paths available to the runtime user | Unrestricted `/bin/bash -lc` commands | Explicitly authorized repair |
+| Mode       | File access                                          | Command access                                                              | Intended use                 |
+| ---------- | ---------------------------------------------------- | --------------------------------------------------------------------------- | ---------------------------- |
+| `readonly` | Reads paths available to the runtime user; no writes | Argument-level allowlist without a shell; validated sequences and pipelines | Default diagnostics          |
+| `full`     | Reads and writes paths available to the runtime user | Unrestricted `/bin/bash -lc` commands                                       | Explicitly authorized repair |
 
 - `workingDirectory` is only the relative-path base and initial cwd, not an access boundary.
 - `readonly` protects integrity, not confidentiality. It can still read sensitive files available to the runtime user.

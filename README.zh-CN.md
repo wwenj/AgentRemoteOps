@@ -6,7 +6,7 @@
 
 <p align="center"><a href="./README.md">English</a> | 简体中文</p>
 
-<p align="center">只在远程 Linux 安装 CLI，本地 Codex 仅安装 Skill 的短时、可审计远程运维桥接工具。</p>
+<p align="center">让 Codex 临时连接远程 Linux 完成诊断与维护，并通过分级权限、自动过期和执行审计控制运维风险。</p>
 
 > [!WARNING]
 > Agent 自动执行远程命令具有风险。优先使用 `readonly`；`full` 会继承启动服务的 Linux 用户权限。将其用于重要环境前，请先理解下方安全边界。
@@ -15,7 +15,7 @@
 
 本地 Codex 通常无法直接看到真实服务器上的进程、端口、systemd、容器、日志和部署文件。直接提供长期 SSH 凭据权限过大，而临时开放公网管理端口也会扩大攻击面。
 
-Agent RemoteOps 在远程 Linux 上启动一个仅监听 `127.0.0.1` 的临时服务，再通过 Cloudflare Quick Tunnel 生成短时公网地址。用户把 URL、Token 和任务交给安装了 Skill 的 Codex，Codex 即可在 Session 权限范围内读取文件或执行命令。Session 到期或用户按下 `Ctrl+C` 后，HTTP 服务、Tunnel、Job 和已跟踪子进程都会关闭。
+Agent RemoteOps 在远程 Linux 上启动一个仅监听 `127.0.0.1` 的临时服务，再通过 Cloudflare Quick Tunnel 生成短时公网地址。用户把 URL、Token 和任务交给 Codex，Codex 即可在 Session 权限范围内读取文件或执行命令。Session 到期或用户按下 `Ctrl+C` 后，HTTP 服务、Tunnel、Job 和已跟踪子进程都会关闭。
 
 ```text
 本地 Codex
@@ -31,8 +31,6 @@ Agent RemoteOps 在远程 Linux 上启动一个仅监听 `127.0.0.1` 的临时�
        ├─ 命令 Job
        └─ 权限、TTL、审计与进程清理
 ```
-
-本地不需要安装 `agent-remoteops` npm CLI。
 
 ## 使用演示
 
@@ -74,15 +72,15 @@ npm install -g agent-remoteops
 agent-remoteops --version
 ```
 
-CLI 只负责远程服务端：
+CLI 用于启动和管理远程 Session：
 
-| 命令 | 用途 |
-| --- | --- |
-| `agent-remoteops start` | 交互式创建临时 Session |
+| 命令                                   | 用途                   |
+| -------------------------------------- | ---------------------- |
+| `agent-remoteops start`                | 交互式创建临时 Session |
 | `agent-remoteops policy show readonly` | 查看 readonly 权限摘要 |
-| `agent-remoteops policy show full` | 查看 full 权限摘要 |
+| `agent-remoteops policy show full`     | 查看 full 权限摘要     |
 
-### 本地 Codex：只安装 Skill
+### 本地 Codex：安装 Skill
 
 在 Codex 中发送：
 
@@ -90,14 +88,6 @@ CLI 只负责远程服务端：
 请从下面的 GitHub 目录安装 Agent RemoteOps Skill：
 https://github.com/wwenj/AgentRemoteOps/tree/master/skills/agent-remoteops
 ```
-
-不要在本地安装 npm CLI。若本地曾安装 0.2.x，可手动清理：
-
-```bash
-npm uninstall -g agent-remoteops
-```
-
-新版不会读取、迁移或删除旧版 `${XDG_CONFIG_HOME:-~/.config}/agent-remoteops/sessions.json`。
 
 ## 快速使用
 
@@ -115,10 +105,10 @@ npm uninstall -g agent-remoteops
 
 ## 权限与安全边界
 
-| 模式 | 文件能力 | 命令能力 | 使用场景 |
-| --- | --- | --- | --- |
-| `readonly` | 可读取启动用户有权访问的路径，禁止写入 | 参数级白名单，不经过 Shell；支持整体预校验的序列和 pipeline | 默认诊断 |
-| `full` | 可读写启动用户有权访问的路径 | 通过 `/bin/bash -lc` 执行，不限制命令内容 | 明确授权的修复 |
+| 模式       | 文件能力                               | 命令能力                                                    | 使用场景       |
+| ---------- | -------------------------------------- | ----------------------------------------------------------- | -------------- |
+| `readonly` | 可读取启动用户有权访问的路径，禁止写入 | 参数级白名单，不经过 Shell；支持整体预校验的序列和 pipeline | 默认诊断       |
+| `full`     | 可读写启动用户有权访问的路径           | 通过 `/bin/bash -lc` 执行，不限制命令内容                   | 明确授权的修复 |
 
 - `workingDirectory` 只负责相对路径和命令初始 cwd，不是访问边界。
 - `readonly` 保护系统完整性，不保护信息机密性；它仍能读取运行用户可访问的敏感文件。
