@@ -1,0 +1,16 @@
+{
+  "version": "2026.7.2",
+  "releaseBaseUrl": "https://github.com/cloudflare/cloudflared/releases/download/2026.7.2",
+  "platforms": {
+    "linux-x64": {
+      "asset": "cloudflared-linux-amd64",
+      "packageName": "agent-remoteops-cloudflared-linux-x64",
+      "sha256": "ec905ea7b7e327ff8abdde8cb64697a2152de74dbcdbf6aec9db8364eb3886cd"
+    },
+    "linux-arm64": {
+      "asset": "cloudflared-linux-arm64",
+      "packageName": "agent-remoteops-cloudflared-linux-arm64",
+      "sha256": "405df476437e027fc6d18729a5a77155c0a33a6082aeee60a799a688f3052e66"
+    }
+  }
+}

@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  createLoadingIndicator,
   formatDurationHuman,
   formatPermission,
+  formatStartupProgress,
   renderConfiguration,
   renderSessionReady,
   startLoadingIndicator,
@@ -58,7 +60,7 @@ describe("terminal UI", () => {
     vi.useFakeTimers();
     const chunks: string[] = [];
     try {
-      const stop = startLoadingIndicator("正在启动 Agent RemoteOps，请稍候……", { color: false }, (chunk) => chunks.push(chunk));
+      const stop = startLoadingIndicator("正在启动 Agent RemoteOps，请稍候……", { color: false, tty: true }, (chunk) => chunks.push(chunk));
 
       expect(chunks.join("")).toContain("⣋ 正在启动 Agent RemoteOps，请稍候……");
       vi.advanceTimersByTime(80);
@@ -68,6 +70,27 @@ describe("terminal UI", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("prints deduplicated plain startup stages outside a TTY", () => {
+    const chunks: string[] = [];
+    const indicator = createLoadingIndicator("正在启动", { color: false, tty: false }, (chunk) => chunks.push(chunk));
+    indicator.update("正在检查运行环境");
+    indicator.update("正在检查运行环境");
+    indicator.update("正在建立 Tunnel");
+    indicator.stop();
+    expect(chunks.join("")).toBe("正在启动\n正在检查运行环境\n正在建立 Tunnel\n");
+  });
+
+  it("formats download bytes, percent, and attempt", () => {
+    expect(formatStartupProgress({
+      stage: "download",
+      message: "正在下载 cloudflared",
+      currentBytes: 5 * 1024 * 1024,
+      totalBytes: 10 * 1024 * 1024,
+      attempt: 2,
+      maxAttempts: 3,
+    })).toBe("正在下载 cloudflared：5.0 MiB / 10.0 MiB (50%)，第 2/3 次");
   });
 
   it("highlights the ready banner and connection values when color is enabled", () => {

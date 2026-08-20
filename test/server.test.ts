@@ -63,7 +63,7 @@ describe("HTTP server", () => {
     const session = await context.app.inject({ method: "GET", url: "/v2/session", headers: auth(context.token) });
     expect(session.statusCode).toBe(200);
     expect(session.json().mode).toBe("readonly");
-    expect(session.json().serverVersion).toBe("0.3.1");
+    expect(session.json().serverVersion).toBe("0.4.0");
     expect(session.json().protocolVersion).toBe(2);
     expect(session.json().workingDirectory).toBeTypeOf("string");
     expect(session.json().workspace).toBeUndefined();

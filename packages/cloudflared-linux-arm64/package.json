@@ -1,0 +1,23 @@
+{
+  "name": "agent-remoteops-cloudflared-linux-arm64",
+  "version": "0.4.0",
+  "description": "Pinned cloudflared binary for Agent RemoteOps on Linux arm64",
+  "license": "Apache-2.0",
+  "os": ["linux"],
+  "cpu": ["arm64"],
+  "bin": {
+    "agent-remoteops-cloudflared-internal": "bin/cloudflared"
+  },
+  "files": ["bin/cloudflared", "README.md", "LICENSE"],
+  "exports": {
+    "./bin/cloudflared": "./bin/cloudflared",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "prepack": "node ../../scripts/prepare-cloudflared.mjs arm64"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

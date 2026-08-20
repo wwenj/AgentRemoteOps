@@ -11,7 +11,8 @@ import {
   renderConfiguration,
   renderIntro,
   renderSessionReady,
-  startLoadingIndicator,
+  createLoadingIndicator,
+  formatStartupProgress,
   terminalColorEnabled,
 } from "./terminal-ui.js";
 
@@ -103,12 +104,15 @@ export async function startInteractive(): Promise<void> {
     return;
   }
   const color = terminalColorEnabled();
-  const stopLoading = startLoadingIndicator(
+  const loading = createLoadingIndicator(
     localize(locale, "正在启动 Agent RemoteOps，请稍候……", "Starting Agent RemoteOps. Please wait..."),
     { color },
   );
   const runtime = new AgentRemoteOpsRuntime(config);
-  const session = await runtime.start(stopLoading).finally(stopLoading);
+  const session = await runtime.start({
+    onStartupFailure: loading.stop,
+    onProgress: (progress) => loading.update(formatStartupProgress(progress, locale)),
+  }).finally(loading.stop);
   process.stdout.write(renderSessionReady({
     url: session.url,
     token: session.token,

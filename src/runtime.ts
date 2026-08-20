@@ -1,6 +1,9 @@
 import { writeFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import type { StartupProgressListener } from "./cloudflared/progress.js";
+import { resolveCloudflared } from "./cloudflared/resolver.js";
+import { startTunnel } from "./cloudflared/runner.js";
 import type { FastifyInstance } from "fastify";
 import { FileService } from "./file-service.js";
 import { localize } from "./i18n.js";
@@ -8,7 +11,6 @@ import { JobManager } from "./job-manager.js";
 import { OperationLogger } from "./logging.js";
 import { ProcessRegistry } from "./process-registry.js";
 import { createServer } from "./server.js";
-import { startTunnel } from "./tunnel.js";
 import type { SessionConfig } from "./types.js";
 import { createToken, tokenDigest } from "./utils.js";
 
@@ -29,7 +31,8 @@ export class AgentRemoteOpsRuntime {
 
   constructor(private readonly config: SessionConfig) {}
 
-  async start(onStartupFailure?: () => void): Promise<{ url: string; token: string; expiresAt: Date }> {
+  async start(options: { onStartupFailure?: () => void; onProgress?: StartupProgressListener } = {}): Promise<{ url: string; token: string; expiresAt: Date }> {
+    const { onStartupFailure, onProgress } = options;
     this.logger = new OperationLogger(this.config.auditDir, this.config.id, this.config.auditEnabled, this.config.locale);
     this.tempDirectory = await mkdtemp(path.join(tmpdir(), "agent-remoteops-"));
     const tunnelConfig = path.join(this.tempDirectory, "cloudflared.yml");
@@ -38,7 +41,12 @@ export class AgentRemoteOpsRuntime {
     const files = await FileService.create(this.config.workingDirectory, this.config.mode, this.config.locale);
     this.jobs = new JobManager(this.config.mode, this.config.id, files, this.processes, this.logger);
     const expiresAt = new Date(Date.now() + this.config.ttlMs);
+    this.installSignals();
     try {
+      const binary = process.env.AGENT_REMOTEOPS_TUNNEL === "none"
+        ? undefined
+        : await resolveCloudflared({ signal: this.abortController.signal, locale: this.config.locale, ...(onProgress ? { onProgress } : {}) });
+      onProgress?.({ stage: "server", message: localize(this.config.locale, "正在启动本地 HTTP 服务", "Starting the local HTTP service") });
       const server = await createServer({
         sessionId: this.config.id,
         locale: this.config.locale,
@@ -51,13 +59,21 @@ export class AgentRemoteOpsRuntime {
         logger: this.logger,
       });
       this.app = server.app;
-      this.installSignals();
-      const tunnel = await startTunnel(server.port, this.processes, tunnelConfig, (code) => {
-        if (!this.stopping) {
-          process.stderr.write(`\n${localize(this.config.locale, `Cloudflare Tunnel 异常退出（${code ?? "信号终止"}）。`, `Cloudflare Tunnel exited unexpectedly (${code ?? "signal"}).`)}\n`);
-          void this.shutdown("tunnel-exit", 1);
-        }
-      }, this.abortController.signal, this.config.locale);
+      const tunnel = await startTunnel({
+        port: server.port,
+        registry: this.processes,
+        configPath: tunnelConfig,
+        onUnexpectedExit: (code) => {
+          if (!this.stopping) {
+            process.stderr.write(`\n${localize(this.config.locale, `Cloudflare Tunnel 异常退出（${code ?? "信号终止"}）。`, `Cloudflare Tunnel exited unexpectedly (${code ?? "signal"}).`)}\n`);
+            void this.shutdown("tunnel-exit", 1);
+          }
+        },
+        signal: this.abortController.signal,
+        locale: this.config.locale,
+        ...(onProgress ? { onProgress } : {}),
+        ...(binary ? { binary } : {}),
+      });
       expiresAt.setTime(Date.now() + this.config.ttlMs);
       this.ttlTimer = setTimeout(() => void this.shutdown("ttl-expired", 0), this.config.ttlMs);
       this.ttlTimer.unref();

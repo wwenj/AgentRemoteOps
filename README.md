@@ -13,9 +13,13 @@
 
 ## Why Agent RemoteOps
 
-A local Codex cannot normally inspect the real processes, ports, systemd units, containers, logs, and deployment files on a remote Linux host. Permanent SSH credentials are broader and longer-lived than a temporary diagnostic task requires, while exposing a management port increases the attack surface.
+Most developers are now accustomed to using powerful agent tools such as Claude Code and Codex in their daily work. However, these local agents depend on the environment in which they run, making it difficult for them to assist with production deployments, take over a Linux server, or troubleshoot a live service on short notice.
 
-Agent RemoteOps starts an HTTP service bound only to `127.0.0.1` on the remote host and exposes it through a temporary Cloudflare Quick Tunnel. Give the generated URL, Token, and task to Codex. The Session shuts down its HTTP server, Tunnel, Jobs, and tracked child processes on Ctrl+C or TTL expiry.
+Private networks, closed ports, host firewalls, and inbound and outbound security-group rules can make both installing an agent on a remote server and connecting a local agent over SSH unnecessarily cumbersome.
+
+Agent RemoteOps was built to solve this problem. It consists of the [Agent-Remoteops](https://www.npmjs.com/package/agent-remoteops) npm package installed on the remote host and a Skill installed in local Codex. The remote service starts quickly and **requires no changes to the existing network configuration or firewall. As long as the host has outbound internet access, it can create a temporary externally accessible URL.** Codex then uses the Skill to establish a temporary connection to the service for fast remote diagnostics and maintenance.
+
+Agent RemoteOps starts a temporary service on the remote Linux host that listens only on `127.0.0.1`, then exposes it through a short-lived Cloudflare Quick Tunnel URL. Give the URL, Token, and task to Codex, and Codex can read files or run commands within the Session's permission scope. When the Session expires or the user presses `Ctrl+C`, the HTTP server, Tunnel, Jobs, and tracked child processes are all shut down.
 
 ```text
 Local Codex
@@ -54,7 +58,8 @@ The remote console shows the Agent's connection, authentication, requests, and c
 
 - Linux x64 or arm64
 - Node.js 22 or later
-- Outbound HTTPS access to npm, GitHub Releases, and Cloudflare
+- Outbound HTTPS access to npm and Cloudflare
+- GitHub Releases is needed on first start only when the npm registry did not provide the platform binary package and automatic repair is required
 
 ### Local Codex
 
@@ -71,6 +76,10 @@ The remote console shows the Agent's connection, authentication, requests, and c
 npm install -g agent-remoteops
 agent-remoteops --version
 ```
+
+The matching `cloudflared` binary is installed automatically as a platform-specific optional npm dependency. No RPM or manual binary installation is required. Each x64/arm64 host downloads only one compressed package of approximately 18 MiB.
+
+If an npm mirror skips the platform package, `agent-remoteops start` repairs it internally with visible progress, resumable downloads, up to three attempts, and a 180-second total download budget. The binary is never executed until its pinned SHA-256 digest has been verified.
 
 The CLI starts and manages remote Sessions:
 
@@ -98,10 +107,17 @@ https://github.com/wwenj/AgentRemoteOps/tree/master/skills/agent-remoteops
    agent-remoteops start
    ```
 
-2. Select the language, lifetime, `readonly` or `full`, initial working directory, and audit setting. Confirm startup and wait for the Session block.
-3. Send its URL, Token, and a concrete task to Codex with the Skill installed.
-4. Codex submits the Token through the Skill's masked prompt, verifies the authenticated server scope, and performs the task. The user does not run a local connection command.
-5. Press Ctrl+C in the remote terminal when finished, or let the TTL expire.
+2. In the CLI, select the language, Session lifetime, permission level, working directory, and audit-log settings. Confirm the configuration and wait for the Session to become ready.
+
+3. Send the URL and Token displayed in the console, together with a concrete task, to Codex with the Skill installed.
+
+4. Codex securely submits the Token through the Skill's bundled client, verifies the actual permissions reported by the server, and then performs the task. The connection is established automatically, with no manual setup required from the user.
+
+5. Each CLI Session accepts a connection from only one client, preventing other unauthorized clients from connecting.
+
+6. When finished, press `Ctrl+C` in the remote terminal, or let the Session expire automatically.
+
+7. All execution logs are stored locally on the remote service for later inspection and troubleshooting.
 
 ## Permission and security boundaries
 
@@ -120,3 +136,5 @@ https://github.com/wwenj/AgentRemoteOps/tree/master/skills/agent-remoteops
 ## License
 
 [MIT](./LICENSE)
+
+The `cloudflared` platform packages are redistributed under Apache-2.0. See [Third-party notices](./THIRD_PARTY_NOTICES.md).

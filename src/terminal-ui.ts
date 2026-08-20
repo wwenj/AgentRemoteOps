@@ -1,4 +1,5 @@
 import { DEFAULT_LOCALE, localize } from "./i18n.js";
+import type { StartupProgress } from "./cloudflared/progress.js";
 import type { Locale, PermissionMode } from "./types.js";
 
 const divider = "─".repeat(64);
@@ -17,6 +18,12 @@ const ansi = {
 
 export interface TerminalRenderOptions {
   color?: boolean;
+  tty?: boolean;
+}
+
+export interface LoadingIndicator {
+  update(message: string): void;
+  stop(): void;
 }
 
 export interface ConfigurationSummary {
@@ -51,23 +58,62 @@ export function startLoadingIndicator(
   options: TerminalRenderOptions = {},
   write: (chunk: string) => void = (chunk) => process.stdout.write(chunk),
 ): () => void {
+  return createLoadingIndicator(message, options, write).stop;
+}
+
+export function createLoadingIndicator(
+  initialMessage: string,
+  options: TerminalRenderOptions = {},
+  write: (chunk: string) => void = (chunk) => process.stdout.write(chunk),
+): LoadingIndicator {
   const color = options.color ?? terminalColorEnabled();
+  const tty = options.tty ?? Boolean(process.stdout.isTTY);
   let frameIndex = 0;
   let stopped = false;
+  let message = initialMessage;
+  let lastWritten = "";
   const render = () => {
+    if (stopped) return;
+    if (!tty) {
+      if (message !== lastWritten) {
+        lastWritten = message;
+        write(`${message}\n`);
+      }
+      return;
+    }
     const frame = spinnerFrames[frameIndex % spinnerFrames.length] ?? spinnerFrames[0];
     frameIndex += 1;
     write(`\r${ansi.clearLine}${styled(frame, ansi.cyan, color)} ${message}`);
   };
   render();
-  const timer = setInterval(render, 80);
-  timer.unref();
-  return () => {
-    if (stopped) return;
-    stopped = true;
-    clearInterval(timer);
-    write(`\r${ansi.clearLine}`);
+  const timer = tty ? setInterval(render, 80) : undefined;
+  timer?.unref();
+  return {
+    update(nextMessage: string) {
+      if (stopped || nextMessage === message) return;
+      message = nextMessage;
+      render();
+    },
+    stop() {
+      if (stopped) return;
+      stopped = true;
+      if (timer) clearInterval(timer);
+      if (tty) write(`\r${ansi.clearLine}`);
+    },
   };
+}
+
+export function formatStartupProgress(progress: StartupProgress, locale: Locale = DEFAULT_LOCALE): string {
+  if (progress.stage !== "download" || progress.currentBytes === undefined) return progress.message;
+  const current = formatMiB(progress.currentBytes);
+  const attempt = progress.attempt && progress.maxAttempts ? localize(locale, `，第 ${progress.attempt}/${progress.maxAttempts} 次`, `, attempt ${progress.attempt}/${progress.maxAttempts}`) : "";
+  if (progress.totalBytes === undefined || progress.totalBytes <= 0) return `${progress.message}：${current}${attempt}`;
+  const percent = Math.min(100, Math.floor(progress.currentBytes / progress.totalBytes * 100));
+  return `${progress.message}：${current} / ${formatMiB(progress.totalBytes)} (${percent}%)${attempt}`;
+}
+
+function formatMiB(bytes: number): string {
+  return `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
 }
 
 export function formatDurationHuman(ms: number, locale: Locale = DEFAULT_LOCALE): string {

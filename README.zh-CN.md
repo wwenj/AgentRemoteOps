@@ -13,7 +13,11 @@
 
 ## 它解决什么问题
 
-本地 Codex 通常无法直接看到真实服务器上的进程、端口、systemd、容器、日志和部署文件。直接提供长期 SSH 凭据权限过大，而临时开放公网管理端口也会扩大攻击面。
+我相信大家已经习惯 Claude Code 或 Codex 等强大的 Agent 工具用于日常工作，但这类本地 Agent 运行依赖本地环境，当你要部署上线、接管 Linux 服务器、临时排查线上服务问题时很难介入。
+
+受到内网网络、端口开放、机器防火墙、进出安全组的各种策略，无论是远程服务器安装 Agent 还是本地通过 SSH 的方式链接都非常不方便。
+
+为了解决这个问题我开发了当前项目，由一个远程安装的 NPM 包 [Agent-Remoteops](https://www.npmjs.com/package/agent-remoteops) 和 一个本地  Codex 安装的 SKILL 组成，在远程服务可快速启动，**无需修改任何当前网络配置与安全防火墙，只要能访问外部网络，即可创建一个临时可访问链接**，本地 Codex 通过 Skill 即可完成本地与当前服务的临时连接，实现快速运维调试。
 
 Agent RemoteOps 在远程 Linux 上启动一个仅监听 `127.0.0.1` 的临时服务，再通过 Cloudflare Quick Tunnel 生成短时公网地址。用户把 URL、Token 和任务交给 Codex，Codex 即可在 Session 权限范围内读取文件或执行命令。Session 到期或用户按下 `Ctrl+C` 后，HTTP 服务、Tunnel、Job 和已跟踪子进程都会关闭。
 
@@ -54,7 +58,8 @@ Agent RemoteOps 在远程 Linux 上启动一个仅监听 `127.0.0.1` 的临时�
 
 - Linux x64 或 arm64
 - Node.js 22 及以上版本
-- 能够通过 HTTPS 访问 npm、GitHub Releases 和 Cloudflare
+- 能够通过 HTTPS 访问 npm 和 Cloudflare
+- 仅当 npm 镜像未提供平台二进制包时，首次启动才需要访问 GitHub Releases 自动修复
 
 ### 本地 Codex
 
@@ -71,6 +76,10 @@ Agent RemoteOps 在远程 Linux 上启动一个仅监听 `127.0.0.1` 的临时�
 npm install -g agent-remoteops
 agent-remoteops --version
 ```
+
+`cloudflared` 会作为当前 Linux 架构的 npm 可选依赖自动安装，无需手动安装 RPM 或二进制文件。x64/arm64 每台机器只会下载一个约 18 MiB 的压缩包。
+
+如果 npm 镜像跳过了平台包，`agent-remoteops start` 会在内部自动修复：显示下载进度，支持断点续传和最多 3 次重试，总下载阶段不超过 180 秒。下载完成后必须通过内置 SHA-256 校验才会执行。
 
 CLI 用于启动和管理远程 Session：
 
@@ -98,10 +107,17 @@ https://github.com/wwenj/AgentRemoteOps/tree/master/skills/agent-remoteops
    agent-remoteops start
    ```
 
-2. 选择语言、有效期、`readonly` 或 `full`、初始工作目录和审计日志，最终确认后等待 Session 就绪。
+2. CLI 中选择语言、有效期、开放权限、工作目录和审计日志，最终确认后等待 Session 就绪。
+
 3. 将控制台显示的 URL、Token 和具体任务一起发送给安装了 Skill 的 Codex。
-4. Codex 会通过 Skill 内置客户端安全提交 Token，核验服务端返回的真实权限，再执行任务；用户不需要手动连接。
-5. 完成后在远程终端按 `Ctrl+C`，或等待 TTL 自动结束。
+
+4. Codex 会通过 Skill 内置客户端安全提交 Token，核验服务端返回的真实权限，再执行任务；用户完全无感，自动链接。
+
+5. CLI 每次启动只允许一个端建立连接，杜绝其他非安全连接。
+
+6. 完成后在远程终端按 `Ctrl+C`，或等待失效自动结束。
+
+7. 所有执行日志保存在服务本地，随时排查执行记录
 
 ## 权限与安全边界
 
@@ -120,3 +136,5 @@ https://github.com/wwenj/AgentRemoteOps/tree/master/skills/agent-remoteops
 ## 许可证
 
 [MIT](./LICENSE)
+
+`cloudflared` 平台包依 Apache-2.0 再分发，详见 [第三方软件声明](./THIRD_PARTY_NOTICES.md)。

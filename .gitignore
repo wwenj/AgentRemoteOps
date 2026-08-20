@@ -1,6 +1,9 @@
 node_modules/
 dist/
 coverage/
+artifacts/
+packages/*/bin/cloudflared
+packages/*/LICENSE
 .DS_Store
 *.log
 pnpm-debug.log*
