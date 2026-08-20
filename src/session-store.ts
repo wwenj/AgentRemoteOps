@@ -1,14 +1,17 @@
 import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
+import type { Locale } from "./types.js";
 
 export interface ClientSession {
   name: string;
   url: string;
   token: string;
+  clientId: string;
+  locale?: Locale;
   expiresAt: string;
   mode: string;
-  workspace: string;
+  workingDirectory: string;
 }
 
 interface StoreData {
@@ -29,7 +32,9 @@ export class SessionStore {
   async current(): Promise<ClientSession> {
     const data = await this.read();
     if (!data.current || !data.sessions[data.current]) throw new Error("尚未连接 Agent RemoteOps Session");
-    return data.sessions[data.current]!;
+    const session = data.sessions[data.current]!;
+    if (!session.clientId) throw new Error("本地 Session 来自旧版协议，请重新执行 agent-remoteops connect");
+    return session;
   }
 
   async remove(name?: string): Promise<void> {

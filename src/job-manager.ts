@@ -1,8 +1,10 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import type { Readable, Writable } from "node:stream";
 import type { FileService } from "./file-service.js";
 import type { OperationLogger } from "./logging.js";
 import { evaluateCommand } from "./policy.js";
+import type { ReadonlyCommandGroup } from "./policy.js";
 import type { ProcessRegistry } from "./process-registry.js";
 import type { JobChunk, JobRecord, JobStatus, PermissionMode } from "./types.js";
 
@@ -115,20 +117,18 @@ export class JobManager {
     }, job.timeoutMs);
     timer.unref();
     try {
-      const children = this.mode === "readonly"
-        ? this.spawnPipeline(decision.pipeline!, job)
-        : [this.spawnShell(job)];
-      job.processIds = children.map((child) => child.pid!).filter(Boolean);
-      const results = await Promise.all(children.map((child) => this.waitForExit(child)));
-      const last = results.at(-1)!;
+      const last = this.mode === "readonly"
+        ? await this.runReadonlySequence(decision.sequence!, job)
+        : await this.waitForExit(this.spawnShell(job));
       job.exitCode = last.code;
       job.signal = last.signal;
       if ((job.status as JobStatus) === "cancelled" || timedOut) return;
-      job.status = last.code === 0 ? "succeeded" : "failed";
+      job.status = !job.error && last.code === 0 ? "succeeded" : "failed";
     } catch (error) {
       if ((job.status as JobStatus) !== "cancelled" && !timedOut) {
         job.status = "failed";
         job.error = error instanceof Error ? error.message : String(error);
+        await this.processes.terminatePids(job.processIds).catch(() => undefined);
       }
     } finally {
       clearTimeout(timer);
@@ -137,7 +137,9 @@ export class JobManager {
         action: "job.done",
         command: job.command,
         jobId: job.id,
-        status: job.status,
+        status: job.status === "failed"
+          ? (job.error ? "infrastructure_error" : "nonzero_exit")
+          : job.status,
         ...(job.exitCode !== undefined ? { exitCode: job.exitCode } : {}),
         durationMs: Date.now() - started,
         bytes: job.outputBytes,
@@ -158,6 +160,27 @@ export class JobManager {
     return child;
   }
 
+  private async runReadonlySequence(
+    sequence: ReadonlyCommandGroup[],
+    job: JobRecord,
+  ): Promise<{ code: number | null; signal: NodeJS.Signals | null }> {
+    let last: { code: number | null; signal: NodeJS.Signals | null } = { code: 0, signal: null };
+    let executed = false;
+    for (const group of sequence) {
+      const shouldRun = !group.operator
+        || group.operator === ";"
+        || (group.operator === "&&" && last.code === 0)
+        || (group.operator === "||" && last.code !== 0);
+      if (!shouldRun) continue;
+      const children = this.spawnPipeline(group.pipeline, job);
+      const results = await Promise.all(children.map((child) => this.waitForExit(child)));
+      last = results.at(-1)!;
+      executed = true;
+      if ((job.status as JobStatus) === "cancelled" || job.status === "timed_out" || job.error) break;
+    }
+    return executed ? last : { code: 0, signal: null };
+  }
+
   private spawnPipeline(pipeline: Array<{ binary: string; args: string[] }>, job: JobRecord): ChildProcess[] {
     const children: ChildProcess[] = [];
     for (let index = 0; index < pipeline.length; index += 1) {
@@ -170,7 +193,11 @@ export class JobManager {
       });
       this.registerChild(child, job);
       child.stderr?.on("data", (data: Buffer) => this.append(job, "stderr", data));
-      if (index > 0) children[index - 1]!.stdout?.pipe(child.stdin!);
+      if (index > 0) {
+        const source = children[index - 1]!.stdout;
+        const destination = child.stdin;
+        if (source && destination) this.connectPipeline(source, destination, job);
+      }
       children.push(child);
     }
     children.at(-1)?.stdout?.on("data", (data: Buffer) => this.append(job, "stdout", data));
@@ -180,18 +207,45 @@ export class JobManager {
   private readonlyArgs(binary: string, args: string[]): string[] {
     const name = binary.split("/").at(-1);
     if (name === "git") {
-      const [subcommand, ...rest] = args;
+      const safeArgs = [...args];
+      const diffIndex = safeArgs.indexOf("diff");
+      if (diffIndex >= 0) safeArgs.splice(diffIndex + 1, 0, "--no-ext-diff", "--no-textconv");
       return [
         "-c", "core.pager=cat",
         "-c", "diff.external=",
         "--no-pager",
-        ...(subcommand ? [subcommand] : []),
-        ...(subcommand === "diff" ? ["--no-ext-diff", "--no-textconv"] : []),
-        ...rest,
+        ...safeArgs,
       ];
     }
     if (name === "systemctl" || name === "journalctl") return ["--no-pager", ...args];
+    if (name === "curl") return ["--proto", "=http,https", "--max-time", "30", ...args];
     return args;
+  }
+
+  private connectPipeline(source: Readable, destination: Writable, job: JobRecord): void {
+    const stopUpstream = () => {
+      source.unpipe(destination);
+      if (!source.readableEnded && !source.destroyed) source.destroy();
+    };
+    destination.once("close", stopUpstream);
+    destination.once("error", (error: NodeJS.ErrnoException) => {
+      stopUpstream();
+      if (!this.isExpectedPipeClosure(error)) this.recordPipelineError(job, error);
+    });
+    source.once("error", (error: NodeJS.ErrnoException) => {
+      if (!this.isExpectedPipeClosure(error)) this.recordPipelineError(job, error);
+    });
+    source.pipe(destination);
+  }
+
+  private isExpectedPipeClosure(error: NodeJS.ErrnoException): boolean {
+    return error.code === "EPIPE"
+      || error.code === "ERR_STREAM_DESTROYED"
+      || error.code === "ERR_STREAM_PREMATURE_CLOSE";
+  }
+
+  private recordPipelineError(job: JobRecord, error: Error): void {
+    if (!job.error) job.error = `Pipeline stream error: ${error.message}`;
   }
 
   private registerChild(child: ChildProcess, job: JobRecord): void {
@@ -207,7 +261,12 @@ export class JobManager {
       PAGER: "cat",
       SYSTEMD_PAGER: "cat",
       GIT_PAGER: "cat",
-      ...(this.mode === "readonly" ? { PATH: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" } : {}),
+      ...(this.mode === "readonly" ? {
+        PATH: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        GIT_OPTIONAL_LOCKS: "0",
+        GIT_EXTERNAL_DIFF: "",
+        RIPGREP_CONFIG_PATH: "/dev/null",
+      } : {}),
     };
   }
 

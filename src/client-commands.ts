@@ -5,19 +5,27 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ApiClient } from "./api-client.js";
+import { DEFAULT_LOCALE, localize } from "./i18n.js";
 import { SessionStore } from "./session-store.js";
+import type { Locale } from "./types.js";
 import { sleep } from "./utils.js";
 
 const store = new SessionStore();
 
 export async function connectCommand(urlValue: string, name: string): Promise<void> {
   const url = new URL(urlValue);
-  if (!url.protocol.startsWith("http")) throw new Error("连接地址必须是 HTTP(S) URL");
+  if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("连接地址必须是 HTTP(S) URL");
   const token = process.env.AGENT_REMOTEOPS_TOKEN || await password({ message: "Token", mask: "*" });
-  const client = new ApiClient({ url: url.toString().replace(/\/$/, ""), token });
-  const info = await client.get<{ expiresAt: string; mode: string; workspace: string }>("/v1/session");
-  await store.save({ name, url: url.toString().replace(/\/$/, ""), token, ...info });
-  process.stdout.write(`Connected: ${name}\nMode: ${info.mode}\nWorkspace: ${info.workspace}\nExpires: ${info.expiresAt}\n`);
+  const clientId = randomUUID();
+  const client = new ApiClient({ url: url.toString().replace(/\/$/, ""), token, clientId });
+  const info = await client.get<{ expiresAt: string; mode: string; workingDirectory: string; locale?: Locale }>("/v1/session");
+  await store.save({ name, url: url.toString().replace(/\/$/, ""), token, clientId, ...info });
+  const locale = info.locale ?? DEFAULT_LOCALE;
+  process.stdout.write(localize(
+    locale,
+    `已连接：${name}\n权限模式：${info.mode}\n初始工作目录：${info.workingDirectory}\n到期时间：${info.expiresAt}\n`,
+    `Connected: ${name}\nPermission mode: ${info.mode}\nInitial working directory: ${info.workingDirectory}\nExpires: ${info.expiresAt}\n`,
+  ));
 }
 
 export async function statusCommand(json: boolean): Promise<void> {
@@ -42,7 +50,7 @@ export async function execCommand(command: string, timeoutMs: number, json: bool
     }
     if (["succeeded", "failed", "cancelled", "timed_out"].includes(job.status)) {
       if (json) process.stdout.write(`${JSON.stringify({ jobId: created.jobId, ...job })}\n`);
-      if (job.truncated && !json) process.stderr.write("\n[output truncated]\n");
+      if (job.truncated && !json) process.stderr.write(localize(session.locale ?? DEFAULT_LOCALE, "\n[输出已截断]\n", "\n[output truncated]\n"));
       if (job.status !== "succeeded") process.exitCode = job.exitCode ?? 1;
       return;
     }

@@ -6,7 +6,9 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { spawn, type ChildProcess } from "node:child_process";
+import { DEFAULT_LOCALE, localize } from "./i18n.js";
 import type { ProcessRegistry } from "./process-registry.js";
+import type { Locale } from "./types.js";
 import { sleep } from "./utils.js";
 
 const VERSION = "2026.7.2";
@@ -32,9 +34,10 @@ export async function startTunnel(
   configPath: string,
   onUnexpectedExit: (code: number | null) => void,
   signal: AbortSignal,
+  locale: Locale = DEFAULT_LOCALE,
 ): Promise<TunnelHandle> {
   if (process.env.AGENT_REMOTEOPS_TUNNEL === "none") return { url: `http://127.0.0.1:${port}` };
-  const binary = process.env.AGENT_REMOTEOPS_CLOUDFLARED || await ensureCloudflared(signal);
+  const binary = process.env.AGENT_REMOTEOPS_CLOUDFLARED || await ensureCloudflared(signal, locale);
   const child = spawn(binary, [
     "--config", configPath,
     "--no-autoupdate",
@@ -52,7 +55,7 @@ export async function startTunnel(
   });
   const url = await new Promise<string>((resolve, reject) => {
     let buffer = "";
-    const timer = setTimeout(() => reject(new Error("等待 Cloudflare Quick Tunnel URL 超时")), 45_000);
+    const timer = setTimeout(() => reject(new Error(localize(locale, "等待 Cloudflare Quick Tunnel URL 超时", "Timed out waiting for the Cloudflare Quick Tunnel URL"))), 45_000);
     const inspect = (chunk: Buffer) => {
       buffer += chunk.toString("utf8");
       const match = buffer.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/i);
@@ -71,7 +74,7 @@ export async function startTunnel(
     child.once("exit", (code) => {
       if (!ready) {
         clearTimeout(timer);
-        reject(new Error(`cloudflared 在建立 Tunnel 前退出：${code ?? "signal"}`));
+        reject(new Error(localize(locale, `cloudflared 在建立 Tunnel 前退出：${code ?? "信号终止"}`, `cloudflared exited before the Tunnel was ready: ${code ?? "signal"}`)));
       }
     });
     signal.addEventListener("abort", () => {
@@ -79,14 +82,14 @@ export async function startTunnel(
       reject(signal.reason ?? new Error("Tunnel startup cancelled"));
     }, { once: true });
   });
-  await waitForHealth(url, signal);
+  await waitForHealth(url, signal, locale);
   ready = true;
   return { url, child };
 }
 
-async function ensureCloudflared(signal: AbortSignal): Promise<string> {
+async function ensureCloudflared(signal: AbortSignal, locale: Locale): Promise<string> {
   if (process.platform !== "linux" || !(process.arch in BINARIES)) {
-    throw new Error("Quick Tunnel 首发仅支持 Linux x64/arm64");
+    throw new Error(localize(locale, "Quick Tunnel 目前仅支持 Linux x64/arm64", "Quick Tunnel currently supports Linux x64/arm64 only"));
   }
   const spec = BINARIES[process.arch as keyof typeof BINARIES];
   const cacheRoot = process.env.XDG_CACHE_HOME || path.join(homedir(), ".cache");
@@ -101,7 +104,7 @@ async function ensureCloudflared(signal: AbortSignal): Promise<string> {
   const temporary = `${target}.download`;
   const url = `https://github.com/cloudflare/cloudflared/releases/download/${VERSION}/${spec.asset}`;
   const response = await fetch(url, { redirect: "follow", signal });
-  if (!response.ok || !response.body) throw new Error(`下载 cloudflared 失败：HTTP ${response.status}`);
+  if (!response.ok || !response.body) throw new Error(localize(locale, `下载 cloudflared 失败：HTTP ${response.status}`, `Failed to download cloudflared: HTTP ${response.status}`));
   try {
     await pipeline(Readable.fromWeb(response.body as never), createWriteStream(temporary, { mode: 0o600 }), { signal });
   } catch (error) {
@@ -111,7 +114,7 @@ async function ensureCloudflared(signal: AbortSignal): Promise<string> {
   const digest = await digestFile(temporary);
   if (digest !== spec.sha256) {
     await rm(temporary, { force: true });
-    throw new Error("cloudflared SHA-256 校验失败");
+    throw new Error(localize(locale, "cloudflared SHA-256 校验失败", "cloudflared SHA-256 verification failed"));
   }
   await chmod(temporary, 0o755);
   await rename(temporary, target);
@@ -130,7 +133,7 @@ async function digestFile(file: string): Promise<string> {
   return hash.digest("hex");
 }
 
-async function waitForHealth(url: string, signal: AbortSignal): Promise<void> {
+async function waitForHealth(url: string, signal: AbortSignal, locale: Locale): Promise<void> {
   let lastError: unknown;
   for (let attempt = 0; attempt < 30; attempt += 1) {
     try {
@@ -141,5 +144,6 @@ async function waitForHealth(url: string, signal: AbortSignal): Promise<void> {
     if (signal.aborted) throw signal.reason;
     await sleep(1_000);
   }
-  throw new Error(`Tunnel 健康检查失败：${lastError instanceof Error ? lastError.message : String(lastError)}`);
+  const detail = lastError instanceof Error ? lastError.message : String(lastError);
+  throw new Error(localize(locale, `Tunnel 健康检查失败：${detail}`, `Tunnel health check failed: ${detail}`));
 }

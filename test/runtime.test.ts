@@ -20,7 +20,8 @@ describe("AgentRemoteOpsRuntime", () => {
     roots.push(root);
     const runtime = new AgentRemoteOpsRuntime({
       id: "runtime-test",
-      workspace: root,
+      locale: "zh-CN",
+      workingDirectory: root,
       mode: "readonly",
       ttlMs: 100,
       auditEnabled: false,

@@ -1,9 +1,10 @@
-import type { PermissionMode } from "./types.js";
+import { DEFAULT_LOCALE, localize } from "./i18n.js";
+import type { Locale, PermissionMode } from "./types.js";
 
 const divider = "─".repeat(64);
 
 export interface ConfigurationSummary {
-  workspace: string;
+  workingDirectory: string;
   ttlMs: number;
   mode: PermissionMode;
   policy: string[];
@@ -16,90 +17,96 @@ export interface SessionSummary {
   url: string;
   token: string;
   expiresAt: Date;
-  workspace: string;
+  workingDirectory: string;
   ttlMs: number;
   mode: PermissionMode;
 }
 
-export function formatDurationHuman(ms: number): string {
+export function formatDurationHuman(ms: number, locale: Locale = DEFAULT_LOCALE): string {
   const totalMinutes = Math.round(ms / 60_000);
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
+  if (locale === "en") {
+    const hourText = `${hours} ${hours === 1 ? "hour" : "hours"}`;
+    const minuteText = `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
+    if (hours === 0) return minuteText;
+    if (minutes === 0) return hourText;
+    return `${hourText} ${minuteText}`;
+  }
   if (hours === 0) return `${minutes} 分钟`;
   if (minutes === 0) return `${hours} 小时`;
   return `${hours} 小时 ${minutes} 分钟`;
 }
 
-export function formatPermission(mode: PermissionMode): string {
-  if (mode === "readonly") return "readonly（只读）";
-  if (mode === "readwrite") return "readwrite（读写受控）";
-  return "full（完全权限）";
+export function formatPermission(mode: PermissionMode, locale: Locale = DEFAULT_LOCALE): string {
+  if (mode === "readonly") return localize(locale, "readonly（只读安全模式）", "readonly (safe read-only)");
+  return localize(locale, "full（完全访问模式）", "full (unrestricted access)");
 }
 
-export function renderIntro(): string {
+export function renderIntro(locale: Locale = DEFAULT_LOCALE): string {
   return [
     "",
     divider,
-    "Agent RemoteOps · Coding Agent 临时远程运维",
+    localize(locale, "Agent RemoteOps · Coding Agent 临时远程运维", "Agent RemoteOps · Temporary remote operations for Coding Agents"),
     divider,
-    "请依次选择会话配置。最终确认前不会启动服务或创建公网隧道。",
+    localize(locale, "请依次选择 Session 配置。最终确认前不会启动服务或创建公网 Tunnel。", "Choose the Session configuration below. No service or public Tunnel will be created before final confirmation."),
     "",
   ].join("\n");
 }
 
-export function renderConfiguration(summary: ConfigurationSummary): string {
+export function renderConfiguration(summary: ConfigurationSummary, locale: Locale = DEFAULT_LOCALE): string {
   return [
     divider,
-    "会话配置确认",
+    localize(locale, "Session 配置确认", "Confirm Session configuration"),
     divider,
-    `工作目录  ${summary.workspace}`,
-    `有效期    ${formatDurationHuman(summary.ttlMs)}`,
-    `权限模式  ${formatPermission(summary.mode)}`,
-    `审计日志  ${summary.audit}`,
-    `运行用户  ${summary.linuxUser}`,
-    `网络隧道  ${summary.tunnel}`,
+    `${localize(locale, "初始工作目录", "Initial working directory")}  ${summary.workingDirectory}`,
+    `${localize(locale, "有效期", "Lifetime")}    ${formatDurationHuman(summary.ttlMs, locale)}`,
+    `${localize(locale, "权限模式", "Permission")}  ${formatPermission(summary.mode, locale)}`,
+    `${localize(locale, "审计日志", "Audit log")}  ${summary.audit}`,
+    `${localize(locale, "运行用户", "Runtime user")}  ${summary.linuxUser}`,
+    `${localize(locale, "网络 Tunnel", "Network Tunnel")}  ${summary.tunnel}`,
     "",
-    "权限范围",
+    localize(locale, "权限范围", "Permission scope"),
     ...summary.policy.map((line) => `  • ${line}`),
     "",
   ].join("\n");
 }
 
-export function renderSessionReady(summary: SessionSummary): string {
-  const duration = formatDurationHuman(summary.ttlMs);
-  const expiresAt = summary.expiresAt.toLocaleString("zh-CN", { hour12: false });
+export function renderSessionReady(summary: SessionSummary, locale: Locale = DEFAULT_LOCALE): string {
+  const duration = formatDurationHuman(summary.ttlMs, locale);
+  const expiresAt = summary.expiresAt.toLocaleString(locale === "en" ? "en-US" : "zh-CN", { hour12: false });
   const permissionNotice = summary.mode === "readonly"
-    ? "当前为只读模式，只允许读取文件和执行受控诊断命令。"
-    : summary.mode === "readwrite"
-      ? "当前为受控读写模式，高危命令拦截仅用于降低误操作风险，并非安全沙箱。"
-      : "当前为完全权限模式，Agent 可使用启动用户拥有的全部系统权限。";
+    ? localize(locale, "当前为 readonly：可读取启动用户有权访问的任意文件，但命令必须通过只读校验；该模式不保护信息机密性。", "The Session is readonly: it can read any file available to the runtime user, but commands must pass read-only validation. This mode does not protect confidentiality.")
+    : localize(locale, "当前为 full：CLI 不限制命令或文件路径，Agent 可使用启动用户拥有的全部系统权限。", "The Session is full: the CLI does not restrict commands or file paths, and the Agent inherits all permissions of the runtime user.");
 
   return [
     "",
     divider,
-    "Agent RemoteOps 临时远程会话已启动",
+    localize(locale, "Agent RemoteOps 临时 Session 已启动", "Agent RemoteOps temporary Session is ready"),
     divider,
     `URL       ${summary.url}`,
     `Token     ${summary.token}`,
-    `权限      ${formatPermission(summary.mode)}`,
-    `工作目录  ${summary.workspace}`,
-    `有效期    ${duration}（${expiresAt} 到期）`,
+    `${localize(locale, "权限", "Permission")}      ${formatPermission(summary.mode, locale)}`,
+    `${localize(locale, "初始工作目录", "Initial cwd")}  ${summary.workingDirectory}`,
+    `${localize(locale, "有效期", "Lifetime")}    ${localize(locale, `${duration}（${expiresAt} 到期）`, `${duration} (expires ${expiresAt})`)}`,
     divider,
     "",
-    "请复制以上 URL 和 Token，发送给已安装 Agent RemoteOps Skill 的 Codex、",
-    "Claude Code 或其他 Coding Agent，即可让 Agent 连接并开始临时排查。",
+    localize(locale, "请复制以上 URL 和 Token，发送给已安装 Agent RemoteOps Skill 的 Codex、", "Copy the URL and Token above and send them to Codex, Claude Code, or another"),
+    localize(locale, "Claude Code 或其他 Coding Agent，即可让 Agent 连接并开始临时排查。", "Coding Agent with the Agent RemoteOps Skill installed."),
     "",
-    "本地手动连接",
+    localize(locale, "本地手动连接", "Manual local connection"),
     `  agent-remoteops connect ${summary.url}`,
     "",
-    "使用与安全提示",
-    "  • URL 和 Token 都属于临时敏感凭据，请只发送给本次授权的 Agent。",
-    `  • 会话将在 ${duration}后自动到期，并清理 HTTP 服务、Tunnel 和已跟踪子进程。`,
-    "  • 请保持当前进程运行；关闭终端或按 Ctrl+C 会立即结束本次会话。",
+    localize(locale, "使用与安全提示", "Usage and security notes"),
+    localize(locale, "  • URL 和 Token 都属于临时敏感凭据，请只发送给本次授权的 Agent。", "  • URL and Token are temporary sensitive credentials. Share them only with the Agent authorized for this Session."),
+    localize(locale, "  • 首次通过 Token 认证的 Client ID 将成为本次 Session 唯一客户端；IP 变化不会中断连接。", "  • The first Client ID authenticated with the Token becomes the only client for this Session; IP changes do not interrupt it."),
+    localize(locale, "  • 初始工作目录只用于解析相对路径，不构成权限边界。", "  • The initial working directory only resolves relative paths; it is not a permission boundary."),
+    localize(locale, `  • Session 将在 ${duration}后自动到期，并清理 HTTP 服务、Tunnel 和已跟踪子进程。`, `  • The Session expires in ${duration} and then cleans up the HTTP service, Tunnel, and tracked child processes.`),
+    localize(locale, "  • 请保持当前进程运行；关闭终端或按 Ctrl+C 会立即结束本次 Session。", "  • Keep this process running. Closing the terminal or pressing Ctrl+C ends the Session immediately."),
     `  • ${permissionNotice}`,
     "",
-    "正在等待 Agent 请求，后续文件、命令和认证日志会在下方实时输出。",
-    "按 Ctrl+C 可随时停止并清理本次临时服务。",
+    localize(locale, "正在等待 Agent 请求，后续文件、命令和认证日志会在下方实时输出。", "Waiting for Agent requests. File, command, and authentication logs will appear below."),
+    localize(locale, "按 Ctrl+C 可随时停止并清理本次临时服务。", "Press Ctrl+C at any time to stop and clean up the temporary service."),
     "",
   ].join("\n");
 }

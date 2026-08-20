@@ -1,4 +1,5 @@
-export type PermissionMode = "readonly" | "readwrite" | "full";
+export type PermissionMode = "readonly" | "full";
+export type Locale = "zh-CN" | "en";
 
 export type JobStatus =
   | "queued"
@@ -10,7 +11,8 @@ export type JobStatus =
 
 export interface SessionConfig {
   id: string;
-  workspace: string;
+  locale: Locale;
+  workingDirectory: string;
   mode: PermissionMode;
   ttlMs: number;
   auditEnabled: boolean;
@@ -48,10 +50,12 @@ export interface AuditEvent {
   action: string;
   status?: string;
   clientIp?: string;
+  clientId?: string;
   command?: string;
   path?: string;
   jobId?: string;
   rule?: string;
+  code?: string;
   exitCode?: number | null;
   durationMs?: number;
   bytes?: number;

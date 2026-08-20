@@ -1,4 +1,6 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { DEFAULT_LOCALE, localize } from "./i18n.js";
+import type { Locale } from "./types.js";
 
 export function createId(prefix: string): string {
   return `${prefix}_${randomUUID().replaceAll("-", "").slice(0, 20)}`;
@@ -21,15 +23,15 @@ export function sha256(data: Buffer | string): string {
   return createHash("sha256").update(data).digest("hex");
 }
 
-export function parseDuration(value: string): number {
+export function parseDuration(value: string, locale: Locale = DEFAULT_LOCALE): number {
   const match = /^(\d+)(s|m|h)$/.exec(value.trim());
-  if (!match) throw new Error("有效期格式应为 30m、1h 等形式");
+  if (!match) throw new Error(localize(locale, "有效期格式应为 30m、1h 等形式", "Use a duration such as 30m or 1h"));
   const amount = Number(match[1]);
   const unit = match[2];
   const multiplier = unit === "s" ? 1_000 : unit === "m" ? 60_000 : 3_600_000;
   const result = amount * multiplier;
   if (result < 5 * 60_000 || result > 8 * 3_600_000) {
-    throw new Error("有效期必须在 5 分钟至 8 小时之间");
+    throw new Error(localize(locale, "有效期必须在 5 分钟至 8 小时之间", "Duration must be between 5 minutes and 8 hours"));
   }
   return result;
 }

@@ -2,38 +2,55 @@
 
 English | [简体中文](./README.zh-CN.md)
 
-Agent RemoteOps is a temporary, auditable remote operations bridge designed for coding agents. It lets an agent on your local machine inspect and operate a remote Linux workspace without requiring a permanently exposed management service.
+Agent RemoteOps is a short-lived, auditable remote-operations bridge for coding agents. It lets a local Codex, Claude Code, or another agent diagnose a real Linux host without distributing permanent SSH credentials or exposing a long-lived management service.
+
+Current source version: `0.2.0`.
 
 > [!WARNING]
-> Agent RemoteOps is in early development. The `readwrite` denylist reduces accidental damage, but it is not an operating-system security sandbox. Review the [security boundaries](#permission-modes-and-security-boundaries) before using it on a production host.
+> Agent RemoteOps is still in early development. `readonly` protects system integrity, not information confidentiality. `full` is unrestricted at the CLI layer and inherits the permissions of the Linux user that starts the server. Read the [security boundaries](#permission-modes-and-security-boundaries) before using it on a production host.
 
-## Background
+## Why Agent RemoteOps
 
-Coding agents are most useful when they can inspect the real runtime environment, but production and staging hosts are often inaccessible from a developer's local machine. Giving an agent a permanent SSH credential or exposing a long-lived administration endpoint creates unnecessary risk.
+Coding agents are substantially more useful when they can inspect the real runtime environment: processes, listeners, systemd state, logs, deployed files, and application health endpoints. Production and staging hosts, however, should not receive permanent agent credentials or expose a permanent administration API.
 
-Agent RemoteOps provides a short-lived alternative:
+Agent RemoteOps provides a temporary alternative:
 
-1. Start a loopback-only HTTP service on the remote Linux host.
-2. Expose it through a temporary Cloudflare Quick Tunnel.
-3. Authenticate every operation with a randomly generated session token.
-4. Restrict the session by workspace, lifetime, and permission mode.
-5. Stop the service, tunnel, jobs, and tracked child processes when the session expires or is closed.
+1. It starts an HTTP service bound only to `127.0.0.1` on the remote host.
+2. It exposes that service through a temporary Cloudflare Quick Tunnel.
+3. Every protected request requires a random Session Token and the bound Client ID.
+4. The Session is constrained by a TTL and either `readonly` or `full` mode.
+5. Expiration or shutdown closes the HTTP service and Tunnel and terminates tracked jobs and child processes.
 
-The remote host only needs outbound network access; no inbound firewall rule or Cloudflare account is required for a Quick Tunnel.
+```text
+Local coding agent
+        │  agent-remoteops CLI
+        ▼
+Cloudflare Quick Tunnel
+        │  Token + Client ID
+        ▼
+127.0.0.1-only RemoteOps server
+        ├── structured file API
+        └── validated command jobs
+```
 
-## Features
+The remote host needs outbound HTTPS access only. A Quick Tunnel does not require an inbound firewall rule, a Cloudflare account, or a fixed public hostname.
 
-- Interactive setup for workspace, session TTL, permission mode, and audit logging
-- Structured file operations: list, stat, read, and controlled write
-- Remote command execution with job status, output streaming, timeout, and cancellation
-- Three permission modes for diagnostics, controlled changes, or unrestricted operation
-- Expiring bearer token stored locally with `0600` permissions
-- Optional Codex Skill for a consistent remote-operations workflow
-- Automatic cleanup on normal shutdown, signal handling, or TTL expiration
+## Capabilities
+
+- Interactive Chinese or English setup for lifetime, permission mode, initial working directory, and audit logging
+- Structured file operations: `list`, `stat`, `read`, and atomic `write`
+- Remote command jobs with streamed output, timeout, status, cancellation, and output truncation reporting
+- A parameter-validated readonly command allowlist, including bounded system, process, network, log, Docker, Git, and HTTP inspection
+- An explicit unrestricted mode for approved administrative work
+- Random expiring bearer token stored locally with `0600` permissions
+- Exclusive binding to the first authenticated Client ID, without binding the Session to a changing client IP
+- Per-IP authentication failure rate limiting and optional local JSONL audit logs
+- Optional Codex Skill that handles pasted Session details and applies a consistent safety workflow
+- Automatic, SHA-256-verified download of the pinned `cloudflared` binary on supported Linux hosts
 
 ## Requirements
 
-### Remote host
+### Remote Linux host
 
 - Linux x64 or arm64
 - Node.js 22 or later
@@ -44,9 +61,9 @@ The remote host only needs outbound network access; no inbound firewall rule or 
 - Node.js 22 or later
 - Network access to the generated `trycloudflare.com` URL
 
-## Installation
+The CLI must currently be installed from source on both machines.
 
-Agent RemoteOps is currently intended to be built from source. Install it on both the remote host and the local machine:
+## Installation
 
 ```bash
 git clone https://github.com/wwenj/AgentRemoteOps.git
@@ -57,95 +74,208 @@ pnpm build
 npm install -g .
 ```
 
-Verify the installation:
+Verify that the active global installation matches the source tree:
 
 ```bash
+agent-remoteops --version
 agent-remoteops --help
 ```
 
-## Usage
-
-### 1. Start a temporary session on the remote host
+When updating an existing installation, rebuild before reinstalling it:
 
 ```bash
-cd /path/to/your/workspace
+git pull --ff-only
+pnpm install --frozen-lockfile
+pnpm build
+npm install -g .
+```
+
+## Quick start with a coding agent
+
+### 1. Start a temporary Session on the remote host
+
+```bash
+cd /path/to/your/initial-directory
 agent-remoteops start
 ```
 
-The interactive wizard asks you to confirm:
+The wizard asks for:
 
-- the workspace exposed through the structured file API;
-- a session lifetime from 5 minutes to 8 hours;
-- the `readonly`, `readwrite`, or `full` permission mode;
-- whether local audit logging is enabled.
+- Chinese or English interface language;
+- a lifetime between 5 minutes and 8 hours;
+- `readonly` or `full` permission mode;
+- the Agent's initial working directory, defaulting to the current directory;
+- whether to keep a local audit log.
 
-The wizard keeps each prompt visually separated and shows a configuration summary before the final confirmation. After startup, the URL, token, permission, workspace, and expiry are displayed as compact single-line fields together with agent handoff, security, live-log, and cleanup guidance.
+The server displays its URL, Token, verified permission mode, initial working directory, and expiry. Keep this process in the foreground. Press `Ctrl+C` to end the Session early; otherwise it closes automatically when the TTL expires.
 
-Copy the generated URL and token to Codex, Claude Code, or another coding agent with the Agent RemoteOps Skill installed. Keep the server process in the foreground. Subsequent file and command logs appear below the connection details. Press `Ctrl+C` to close the session early; otherwise it closes and cleans up temporary resources automatically when the TTL expires.
+### 2. Hand the Session directly to the agent
 
-### 2. Connect from the local machine
-
-```bash
-agent-remoteops connect https://example.trycloudflare.com
-```
-
-Enter the token at the prompt. The session is saved locally and reused by subsequent commands. For non-interactive environments, provide it through `AGENT_REMOTEOPS_TOKEN`.
-
-### 3. Inspect and operate the remote workspace
-
-```bash
-# Inspect session scope and capabilities
-agent-remoteops status
-
-# Run a bounded diagnostic command
-agent-remoteops exec 'journalctl -u app -n 200 --no-pager'
-
-# Work with files through the structured API
-agent-remoteops list .
-agent-remoteops stat package.json
-agent-remoteops read package.json
-agent-remoteops read logs/app.log --out app.log
-
-# Upload a local file when the session permits writes
-agent-remoteops write ./config.json config/config.json
-
-# Inspect or cancel remote jobs
-agent-remoteops jobs
-agent-remoteops cancel <job-id>
-
-# Remove the saved local session
-agent-remoteops disconnect
-```
-
-Use `--json` with `status`, `exec`, `jobs`, `list`, and `stat` when integrating with an agent or script.
-
-### 4. Install the Codex Skill (optional)
+Install the bundled Codex Skill once on the local machine:
 
 ```bash
 agent-remoteops skill install codex
 ```
 
-Use `--force` to replace an existing installation:
+Use `--force` when replacing an existing installation:
 
 ```bash
 agent-remoteops skill install codex --force
 ```
 
+Then paste the generated Session block and the task in the same message:
+
+```text
+URL          https://example.trycloudflare.com
+Token        <temporary-session-token>
+Permission   readonly
+Initial cwd  /srv/app
+Lifetime     30 minutes
+
+Check server health, deployed services, listeners, and recent errors. Do not make changes.
+```
+
+The Skill instructs the agent to connect through the masked token prompt, verify the authenticated Session with `status --json`, and continue with the requested task.
+
+> [!IMPORTANT]
+> Treat both the URL and Token as temporary credentials. The first successful connection binds the Session to that local Client ID. Do not connect from another client before handing the Session to the intended agent, or the agent will receive `CLIENT_ID_NOT_ALLOWED`.
+
+### 3. Connect manually instead
+
+```bash
+agent-remoteops connect https://example.trycloudflare.com --name production-check
+```
+
+Enter the Token at the masked prompt. The Session becomes the current local Session for subsequent commands.
+
+For trusted non-interactive automation, the client also accepts `AGENT_REMOTEOPS_TOKEN`. Supply it through a secret manager; do not place it in command arguments, shell history, logs, or documentation.
+
+## Common workflow
+
+```bash
+# Verify server-reported scope before doing anything else
+agent-remoteops status --json
+
+# Run a bounded readonly diagnostic
+agent-remoteops exec 'journalctl -u app -n 100 --no-pager' --timeout 30000
+
+# Current readonly builds support prevalidated sequences and pipelines
+agent-remoteops exec 'uptime; ps aux | grep node'
+
+# Use the structured file API when possible
+agent-remoteops list /srv/app --json
+agent-remoteops stat /srv/app/package.json --json
+agent-remoteops read /srv/app/package.json
+agent-remoteops read /var/log/app.log --out ./app.log
+
+# Download the current file to obtain its SHA-256, then upload with
+# optimistic concurrency in full mode
+agent-remoteops read /srv/app/config.json --out ./config.remote.json
+agent-remoteops write ./config.json /srv/app/config.json --if-match <remote-sha256>
+
+# Inspect or cancel jobs
+agent-remoteops jobs --json
+agent-remoteops cancel <job-id>
+
+# Remove the current saved local Session
+agent-remoteops disconnect
+```
+
+## CLI reference
+
+| Command | Purpose |
+| --- | --- |
+| `start` | Interactively start the remote server and temporary Tunnel |
+| `connect <url> [--name <name>]` | Authenticate and save a local Session |
+| `status [--json]` | Read server version, mode, capabilities, working directory, and expiry |
+| `exec <command> [--timeout <ms>] [--json]` | Create a job and stream its output until completion |
+| `jobs [--json]` | List jobs retained by the current Session |
+| `cancel <job-id>` | Cancel a queued or running job |
+| `list <path> [--json]` | List a remote directory through the structured API |
+| `stat <path> [--json]` | Read remote file metadata |
+| `read <remote-path> [--out <file>]` | Print or download a remote file |
+| `write <local-file> <remote-path> [--if-match <sha256>]` | Atomically upload a file in `full` mode |
+| `policy show <readonly\|full>` | Show the installed CLI's permission summary |
+| `skill install codex [--force]` | Install the bundled Codex Skill |
+| `disconnect [name]` | Remove a saved local Session |
+
+`--json` is supported by `status`, `exec`, `jobs`, `list`, and `stat`.
+
 ## Permission modes and security boundaries
 
 | Mode | File API | Commands | Intended use |
 | --- | --- | --- | --- |
-| `readonly` | `stat`, `list`, `read` | Diagnostic allowlist; no shell redirection, substitution, or compound operations | Inspection and incident diagnosis |
-| `readwrite` | Read and write | General shell with built-in high-risk command blocking | Controlled repair and configuration changes |
-| `full` | Read and write | No content restrictions | Explicitly approved administration |
+| `readonly` | Read any path accessible to the runtime user; writes denied | Parameter-validated allowlist; commands run without a Shell; prevalidated `;`, `&&`, `||`, and pipelines are supported | Inspection and incident diagnosis |
+| `full` | Read and write any path accessible to the runtime user | No content restrictions; commands run through `/bin/bash -lc` | Explicitly approved administration |
 
-Important boundaries:
+### Readonly behavior
 
-- The workspace confines the structured file API, but it is only the initial working directory for general shell commands.
-- `readwrite` rules are accident-prevention guardrails, not a sandbox or privilege boundary.
-- `full` inherits every permission of the Linux user that starts Agent RemoteOps. Avoid running as `root` unless it is strictly necessary.
-- Quick Tunnel URLs are public endpoints protected by the session token. Treat both the URL and token as sensitive and keep the TTL short.
-- Normal shutdown attempts to terminate tracked jobs and child processes. `SIGKILL`, host failure, and persistent side effects created by commands cannot be rolled back automatically.
+`readonly` permits selected inspection commands and validates their arguments. Examples include `systemctl status`, bounded `journalctl`, `ps`, `ss`, `df`, `git status`, `docker ps`, and HTTP `GET`/`HEAD` requests with `curl`.
+
+It rejects, among other things:
+
+- commands outside the allowlist;
+- file redirection, background execution, command substitution, and subshells;
+- mutating `systemctl`, Docker, Git, `find`, network, and package-manager operations;
+- `curl` uploads, request bodies, output files, non-HTTP(S) URLs, and non-GET/HEAD methods;
+- explicit binary paths that could bypass the controlled readonly `PATH`.
+
+The whole sequence is validated before any child command starts. A rejected child prevents the entire sequence from running.
+
+### Important boundaries
+
+- `workingDirectory` is only the initial `cwd` and the base for relative paths. It is not a read or write boundary.
+- `readonly` can read any file available to the Linux user and follows symlinks. It protects integrity, not confidentiality.
+- `full` inherits every permission of the Linux user that starts Agent RemoteOps. Avoid starting it as `root` unless strictly necessary.
+- Quick Tunnel URLs are public endpoints. Protected routes require the Token and bound Client ID; `/healthz` is intentionally unauthenticated and returns only basic liveness.
+- Authentication is rate-limited per observed client IP, but the Token remains the primary credential.
+- Normal shutdown terminates tracked jobs and child processes. `SIGKILL`, host failure, and persistent effects already created by commands cannot be rolled back.
+- Quick Tunnels have no availability guarantee and are not suitable for permanent administration or production traffic.
+
+## Operational limits
+
+| Limit | Value |
+| --- | --- |
+| Session lifetime | 5 minutes to 8 hours |
+| Job timeout | 1 second to 10 minutes; CLI default 60 seconds |
+| Captured output per job | 4 MiB; additional output is marked truncated |
+| Structured file read/write | 10 MiB per file |
+| Job concurrency | One active job, up to eight queued jobs |
+| API request body | 16 MiB |
+
+Local Sessions are stored under `${XDG_CONFIG_HOME:-~/.config}/agent-remoteops/sessions.json` with mode `0600`. Audit logs are written under `${XDG_STATE_HOME:-~/.local/state}/agent-remoteops/audit/` when enabled. Do not print or copy the stored Token.
+
+## Troubleshooting
+
+### Verify the authenticated server first
+
+```bash
+agent-remoteops status --json
+```
+
+Trust the returned `version`, `mode`, `capabilities`, `workingDirectory`, and `expiresAt` rather than a copied label or an old local assumption.
+
+### `CLIENT_ID_NOT_ALLOWED`
+
+Another Client ID authenticated first. Continue from the originally connected client or stop the remote process and create a new Session. Reusing the Token from a different local installation will not rebind an active Session.
+
+### `readonly-command:<name>` or another policy denial
+
+Do not retry the same prohibited operation. Use an allowed readonly alternative, the structured file API, or start a new `full` Session only when the user has explicitly authorized the required mutation.
+
+### A current readonly sequence is rejected as `readonly-shell-operator`
+
+Redirection, `&`, command substitution, and subshells are intentionally rejected. The current source does support `;`, `&&`, `||`, and pipelines. If those are also rejected, the running global installation was likely built from older or stale output even if `package.json` already reports `0.2.0`. Split the diagnostic into individual commands, then rebuild and reinstall the server and local CLI from the same commit.
+
+### Tunnel startup fails
+
+Confirm that the remote host can reach GitHub Releases and Cloudflare over HTTPS. The server downloads a pinned `cloudflared` binary, verifies its SHA-256 digest, caches it under `${XDG_CACHE_HOME:-~/.cache}/agent-remoteops/cloudflared/`, and waits for `/healthz` before showing the Session as ready.
+
+For local development without Cloudflare:
+
+```bash
+AGENT_REMOTEOPS_TUNNEL=none pnpm dev start
+```
 
 ## Local development
 
@@ -154,11 +284,7 @@ pnpm install --frozen-lockfile
 pnpm check
 ```
 
-Run the service locally without Cloudflare:
-
-```bash
-AGENT_REMOTEOPS_TUNNEL=none pnpm dev start
-```
+`pnpm check` runs TypeScript checking, the Vitest suite, and a production build.
 
 ## License
 

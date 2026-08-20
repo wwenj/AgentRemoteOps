@@ -17,7 +17,7 @@ import { startInteractive } from "./start-wizard.js";
 import type { PermissionMode } from "./types.js";
 
 const program = new Command();
-program.name("agent-remoteops").description("Temporary remote operations bridge for coding agents").version("0.1.0");
+program.name("agent-remoteops").description("Temporary remote operations bridge for coding agents").version("0.2.0");
 
 program.command("start").description("交互式启动临时远程服务").action(startInteractive);
 program.command("connect")
@@ -45,7 +45,7 @@ program.command("disconnect").argument("[name]").action(disconnectCommand);
 
 const policy = program.command("policy").description("查看权限策略");
 policy.command("show").argument("<mode>").action((mode: PermissionMode) => {
-  if (!["readonly", "readwrite", "full"].includes(mode)) throw new Error("mode 必须是 readonly、readwrite 或 full");
+  if (!["readonly", "full"].includes(mode)) throw new Error("mode 必须是 readonly 或 full");
   process.stdout.write(`${describePolicy(mode).join("\n")}\n`);
 });
 const skill = program.command("skill").description("管理 Coding Agent Skill");
