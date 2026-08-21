@@ -4,6 +4,12 @@
 
 <h1 align="center">Agent RemoteOps</h1>
 
+<p align="center">
+  <a href="https://www.npmjs.com/package/agent-remoteops"><img src="https://img.shields.io/npm/v/agent-remoteops?logo=npm&label=npm" alt="npm 版本"></a>
+  <a href="https://github.com/wwenj/AgentRemoteOps"><img src="https://img.shields.io/github/languages/top/wwenj/AgentRemoteOps?logo=typescript&label=TypeScript" alt="TypeScript"></a>
+  <a href="#环境要求"><img src="https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black" alt="Linux 平台"></a>
+</p>
+
 <p align="center"><a href="./README.md">English</a> | 简体中文</p>
 
 <p align="center">让 Codex 临时连接远程 Linux 完成诊断与维护，并通过分级权限、自动过期和执行审计控制运维风险。</p>
@@ -17,7 +23,7 @@
 
 受到内网网络、端口开放、机器防火墙、进出安全组的各种策略，无论是远程服务器安装 Agent 还是本地通过 SSH 的方式链接都非常不方便。
 
-为了解决这个问题我开发了当前项目，由一个远程安装的 NPM 包 [Agent-Remoteops](https://www.npmjs.com/package/agent-remoteops) 和 一个本地  Codex 安装的 SKILL 组成，在远程服务可快速启动，**无需修改任何当前网络配置与安全防火墙，只要能访问外部网络，即可创建一个临时可访问链接**，本地 Codex 通过 Skill 即可完成本地与当前服务的临时连接，实现快速运维调试。
+为了解决这个问题我开发了当前项目，由一个远程安装的 NPM 包 [Agent-Remoteops](https://www.npmjs.com/package/agent-remoteops) 和 一个本地 Codex 安装的 SKILL 组成，在远程服务可快速启动，**无需修改任何当前网络配置与安全防火墙，只要能访问外部网络，即可创建一个临时可访问链接**，本地 Codex 通过 Skill 即可完成本地与当前服务的临时连接，实现快速运维调试。
 
 Agent RemoteOps 在远程 Linux 上启动一个仅监听 `127.0.0.1` 的临时服务，再通过 Cloudflare Quick Tunnel 生成短时公网地址。用户把 URL、Token 和任务交给 Codex，Codex 即可在 Session 权限范围内读取文件或执行命令。Session 到期或用户按下 `Ctrl+C` 后，HTTP 服务、Tunnel、Job 和已跟踪子进程都会关闭。
 

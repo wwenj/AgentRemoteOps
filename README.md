@@ -4,6 +4,12 @@
 
 <h1 align="center">Agent RemoteOps</h1>
 
+<p align="center">
+  <a href="https://www.npmjs.com/package/agent-remoteops"><img src="https://img.shields.io/npm/v/agent-remoteops?logo=npm&label=npm" alt="npm version"></a>
+  <a href="https://github.com/wwenj/AgentRemoteOps"><img src="https://img.shields.io/github/languages/top/wwenj/AgentRemoteOps?logo=typescript&label=TypeScript" alt="TypeScript"></a>
+  <a href="#requirements"><img src="https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black" alt="Linux platform"></a>
+</p>
+
 <p align="center">English | <a href="./README.zh-CN.md">简体中文</a></p>
 
 <p align="center">Give Codex temporary, controlled access to a remote Linux host for diagnostics and maintenance, with scoped permissions, expiring Sessions, and auditable execution.</p>
